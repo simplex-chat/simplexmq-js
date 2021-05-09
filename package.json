@@ -2,9 +2,13 @@
   "name": "simplexmq",
   "version": "0.0.1",
   "description": "SimpleXMQ - JavaScript SMP protocol client and agent",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "prettier:write": "prettier --write './**/*.{json,yaml,js,ts}'",
+    "prettier:check": "prettier --list-different './**/*.{json,yaml,js,ts}'",
+    "eslint": "eslint --ext .ts ./src/**/*",
+    "test": "npm run prettier:check && npm run eslint && tsc --noEmit"
   },
   "repository": {
     "type": "git",
@@ -15,5 +19,25 @@
   "bugs": {
     "url": "https://github.com/simplex-chat/simplexmq-js/issues"
   },
-  "homepage": "https://github.com/simplex-chat/simplexmq-js#readme"
+  "homepage": "https://github.com/simplex-chat/simplexmq-js#readme",
+  "devDependencies": {
+    "@types/node": "^15.0.2",
+    "@typescript-eslint/eslint-plugin": "^4.22.1",
+    "@typescript-eslint/parser": "^4.22.1",
+    "eslint": "^7.26.0",
+    "eslint-config-prettier": "^8.3.0",
+    "husky": "^6.0.0",
+    "lint-staged": "^11.0.0",
+    "prettier": "^2.2.1",
+    "typescript": "^4.2.4"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "*.{json,yaml,js,ts}": "prettier --write"
+  },
+  "prettier": "./prettierrc.json"
 }
