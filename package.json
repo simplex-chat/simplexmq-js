@@ -1,0 +1,19 @@
+{
+  "name": "simplexmq",
+  "version": "0.0.1",
+  "description": "SimpleXMQ - JavaScript SMP protocol client and agent",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/simplex-chat/simplexmq-js.git"
+  },
+  "author": "simplex.chat",
+  "license": "AGPL-3.0-only",
+  "bugs": {
+    "url": "https://github.com/simplex-chat/simplexmq-js/issues"
+  },
+  "homepage": "https://github.com/simplex-chat/simplexmq-js#readme"
+}
