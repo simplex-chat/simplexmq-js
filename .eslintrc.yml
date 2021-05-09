@@ -33,7 +33,6 @@ rules:
   no-template-curly-in-string: error
   no-trailing-spaces: error
   no-undef-init: error
-  no-use-before-define: [error, nofunc]
   prefer-arrow-callback: error
   prefer-const: error
   prefer-destructuring: [warn, VariableDeclarator: {object: true}]
@@ -57,7 +56,6 @@ rules:
   no-invalid-this: off
   "@typescript-eslint/no-invalid-this": error
   "@typescript-eslint/no-misused-new": error
-  "@typescript-eslint/no-parameter-properties": error
   "@typescript-eslint/no-unused-expressions": error
   "@typescript-eslint/no-unused-vars": [error, argsIgnorePattern: ^_]
   "@typescript-eslint/prefer-for-of": error
