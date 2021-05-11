@@ -12,7 +12,7 @@ describe("Parsing & serializing SMP commands", () => {
   test("SEND", parseSerialize(SMP.cSEND("hello")))
   test("PING", parseSerialize(SMP.cPING()))
   test("IDS", parseSerialize(SMP.cIDS("1234", "5678")))
-  test.skip("MSG", parseSerialize(SMP.cMSG("1234", new Date(), "hello")))
+  test("MSG", parseSerialize(SMP.cMSG("1234", new Date(), "hello")))
   test("END", parseSerialize(SMP.cEND()))
   test("OK", parseSerialize(SMP.cOK()))
   test("ERR", parseSerialize(SMP.cERR("AUTH", undefined)))

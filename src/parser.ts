@@ -27,7 +27,7 @@ export class Parser {
   word(range?: number): string {
     const pos = range ? this.s.slice(this.pos, this.pos + range).indexOf(" ") + this.pos : this.s.indexOf(" ", this.pos)
     let res: string
-    ;[res, this.pos] = pos >= 0 ? [this.s.slice(this.pos, pos), pos] : [this.s.slice(this.pos), this.s.length]
+    ;[res, this.pos] = pos >= this.pos ? [this.s.slice(this.pos, pos), pos] : [this.s.slice(this.pos), this.s.length]
     return res
   }
 
@@ -60,10 +60,11 @@ export class Parser {
     return c >= "0" && c <= "9" ? (this.pos++, c) : undefined
   }
 
-  // TODO stub
   // takes ISO8601 date and returns as Date object
   date(): Date | undefined {
-    return new Date()
+    const s = this.word()
+    const d = s && new Date(s)
+    return d && !isNaN(d.valueOf()) ? d : undefined
   }
 
   // takes the space
