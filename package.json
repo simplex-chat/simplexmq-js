@@ -8,7 +8,7 @@
     "prettier:write": "prettier --write './**/*.{json,yaml,js,ts}'",
     "prettier:check": "prettier --list-different './**/*.{json,yaml,js,ts}'",
     "eslint": "eslint --ext .ts ./src/**/*",
-    "test": "npm run prettier:check && npm run eslint && tsc --noEmit"
+    "test": "npm run prettier:check && npm run eslint && jest"
   },
   "repository": {
     "type": "git",

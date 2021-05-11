@@ -1,4 +1,4 @@
-import {Parser} from "./parser"
+import {Parser, isAlphaNum} from "./parser"
 
 enum Party {
   Recipient = "R",
@@ -93,9 +93,9 @@ export function serializeSMPCommand(c: SMPCommand): string {
     : c.cmd === "SEND"
     ? `SEND ${serializeMsg(c.msgBody)}`
     : c.cmd === "IDS"
-    ? `IDS ${encode64(c.rcvId)} ${encode64(c.sndId)}`
+    ? `IDS ${btoa(c.rcvId)} ${btoa(c.sndId)}`
     : c.cmd === "MSG"
-    ? `MSG ${encode64(c.msgId)} ${c.ts.toISOString()} ${serializeMsg(c.msgBody)}`
+    ? `MSG ${btoa(c.msgId)} ${c.ts.toISOString()} ${serializeMsg(c.msgBody)}`
     : c.cmd === "ERR"
     ? // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
       `ERR ${c.error === "CMD" ? `CMD ${c.cmdError}` : c.error}`
@@ -112,17 +112,12 @@ function serializePubKey(rcvPubKey: string): string {
 }
 
 // TODO stub
-function encode64(bytes: string): string {
-  return bytes
-}
-
-// TODO stub
 function byteLength(s: string): number {
   return s.length
 }
 
 export const smpCmdParsers: {
-  [T in CmdTag]: (p: Parser) => SMPCommand<Party, T> | undefined | false | ""
+  [T in CmdTag]: (p: Parser) => SMPCommand<Party, T> | undefined | ""
 } = {
   NEW: (p) => {
     let key: string | undefined
@@ -148,7 +143,9 @@ export const smpCmdParsers: {
   MSG: (p) => {
     let msgId, msg: string | undefined
     let ts: Date | undefined
-    return p.space() && (msgId = b64P(p)) && p.space() && (ts = p.date()) && p.space() && (msg = messageP(p)) && cMSG(msgId, ts, msg)
+    return (
+      p.space() && (msgId = b64P(p)) && p.space() && (ts = p.date()) && p.space() && (msg = messageP(p)) && cMSG(msgId, ts, msg)
+    )
   },
   END: cEND,
   OK: cOK,
@@ -176,9 +173,9 @@ function pubKeyP(p: Parser): string | undefined {
   return p.word()
 }
 
-// TODO stub
 function b64P(p: Parser): string | undefined {
-  return p.word()
+  let ds, s: string | undefined
+  return (ds = p.takeWhile1(isAlphaNum)) && (s = ds + p.takeWhileChar("=")).length % 4 === 0 ? atob(s) : undefined
 }
 
 function messageP(p: Parser): string | undefined {

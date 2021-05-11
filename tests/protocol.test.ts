@@ -1,3 +1,4 @@
+import "./browser_globals"
 import {serializeSMPCommand, parseSMPCommand, SMPCommand} from "../src/protocol"
 import * as SMP from "../src/protocol"
 import * as assert from "assert"
@@ -11,8 +12,8 @@ describe("Parsing & serializing SMP commands", () => {
   test("DEL", parseSerialize(SMP.cDEL()))
   test("SEND", parseSerialize(SMP.cSEND("hello")))
   test("PING", parseSerialize(SMP.cPING()))
-  test("IDS", parseSerialize(SMP.cIDS("1234", "5678")))
-  test("MSG", parseSerialize(SMP.cMSG("1234", new Date(), "hello")))
+  test("IDS", parseSerialize(SMP.cIDS("abc", "def")))
+  test("MSG", parseSerialize(SMP.cMSG("fgh", new Date(), "hello")))
   test("END", parseSerialize(SMP.cEND()))
   test("OK", parseSerialize(SMP.cOK()))
   test("ERR", parseSerialize(SMP.cERR("AUTH", undefined)))
