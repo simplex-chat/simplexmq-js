@@ -30,9 +30,10 @@ type CmdTag<P extends Party = Party> = P extends Party.Recipient
 
 export const cmdTags = [...recipientCmdTags, ...senderCmdTags, ...brokerCmdTags] as const
 
-interface Command<P extends Party, C extends CmdTag<P> = CmdTag<P>> {
+interface Command<P extends Party, C extends CmdTag<P>> {
   party: P
   cmd: C
+  [x: string]: unknown
 }
 
 type NEW = Command<Party.Recipient, "NEW"> & {rcvPubKey: string} // TODO type
@@ -60,30 +61,31 @@ type CMDErrorType = typeof smpCmdErrors[number]
 
 type ErrorSubType<E extends ErrorType> = E extends "CMD" ? CMDErrorType : undefined
 
-export type SomeCommand = NEW | SUB | KEY | ACK | OFF | DEL | SEND | PING | IDS | MSG | END | OK | ERR | PONG
+export type SMPCommand<P extends Party = Party, C extends CmdTag<P> = CmdTag<P>> = Command<P, C> &
+  (NEW | SUB | KEY | ACK | OFF | DEL | SEND | PING | IDS | MSG | END | OK | ERR | PONG)
 
 // command constructors
-const cNEW = (key: string): NEW => ({cmd: "NEW", party: Party.Recipient, rcvPubKey: key})
-const cSUB = (): SUB => ({cmd: "SUB", party: Party.Recipient})
-const cKEY = (key: string): KEY => ({cmd: "KEY", party: Party.Recipient, sndPubKey: key})
-const cACK = (): ACK => ({cmd: "ACK", party: Party.Recipient})
-const cOFF = (): OFF => ({cmd: "OFF", party: Party.Recipient})
-const cDEL = (): DEL => ({cmd: "DEL", party: Party.Recipient})
-const cSEND = (msg: string): SEND => ({cmd: "SEND", party: Party.Sender, msgBody: msg})
-const cPING = (): PING => ({cmd: "PING", party: Party.Sender})
-const cIDS = (rcvId: string, sndId: string): IDS => ({cmd: "IDS", party: Party.Broker, rcvId, sndId})
-const cMSG = (msgId: string, ts: Date, msgBody: string): MSG => ({cmd: "MSG", party: Party.Broker, msgId, ts, msgBody})
-const cEND = (): END => ({cmd: "END", party: Party.Broker})
-const cOK = (): OK => ({cmd: "OK", party: Party.Broker})
-const cERR = <E extends ErrorType>(error: E, cmdError: ErrorSubType<E>): ERR<E> => ({
+export const cNEW = (key: string): NEW => ({cmd: "NEW", party: Party.Recipient, rcvPubKey: key})
+export const cSUB = (): SUB => ({cmd: "SUB", party: Party.Recipient})
+export const cKEY = (key: string): KEY => ({cmd: "KEY", party: Party.Recipient, sndPubKey: key})
+export const cACK = (): ACK => ({cmd: "ACK", party: Party.Recipient})
+export const cOFF = (): OFF => ({cmd: "OFF", party: Party.Recipient})
+export const cDEL = (): DEL => ({cmd: "DEL", party: Party.Recipient})
+export const cSEND = (msg: string): SEND => ({cmd: "SEND", party: Party.Sender, msgBody: msg})
+export const cPING = (): PING => ({cmd: "PING", party: Party.Sender})
+export const cIDS = (rcvId: string, sndId: string): IDS => ({cmd: "IDS", party: Party.Broker, rcvId, sndId})
+export const cMSG = (msgId: string, ts: Date, msgBody: string): MSG => ({cmd: "MSG", party: Party.Broker, msgId, ts, msgBody})
+export const cEND = (): END => ({cmd: "END", party: Party.Broker})
+export const cOK = (): OK => ({cmd: "OK", party: Party.Broker})
+export const cERR = <E extends ErrorType>(error: E, cmdError: ErrorSubType<E>): ERR<E> => ({
   cmd: "ERR",
   party: Party.Broker,
   error,
   cmdError,
 })
-const cPONG = (): PONG => ({cmd: "PONG", party: Party.Broker})
+export const cPONG = (): PONG => ({cmd: "PONG", party: Party.Broker})
 
-export function serializeSMPCommand(c: SomeCommand): string {
+export function serializeSMPCommand(c: SMPCommand): string {
   return c.cmd === "NEW"
     ? `NEW ${serializePubKey(c.rcvPubKey)}`
     : c.cmd === "KEY"
@@ -120,7 +122,7 @@ function byteLength(s: string): number {
 }
 
 export const smpCmdParsers: {
-  [T in CmdTag]: (p: Parser) => (SomeCommand & Command<Party, T>) | undefined | false | ""
+  [T in CmdTag]: (p: Parser) => SMPCommand<Party, T> | undefined | false | ""
 } = {
   NEW: (p) => {
     let key: string | undefined
@@ -146,29 +148,25 @@ export const smpCmdParsers: {
   MSG: (p) => {
     let msgId, msg: string | undefined
     let ts: Date | undefined
-    return (
-      p.space() &&
-      (msgId = b64P(p)) &&
-      p.space() &&
-      (ts = p.date()) &&
-      p.space() &&
-      (msg = messageP(p)) &&
-      cMSG(msgId, ts, msg)
-    )
+    return p.space() && (msgId = b64P(p)) && p.space() && (ts = p.date()) && p.space() && (msg = messageP(p)) && cMSG(msgId, ts, msg)
   },
   END: cEND,
   OK: cOK,
   ERR: (p) => {
     const err = p.space() && p.someStr(smpErrors)
     let cmdErr: CMDErrorType | undefined
-    return err === "CMD"
-      ? p.space() && (cmdErr = p.someStr(smpCmdErrors)) && cERR("CMD", cmdErr)
-      : err && cERR(err, undefined)
+    return err === "CMD" ? p.space() && (cmdErr = p.someStr(smpCmdErrors)) && cERR("CMD", cmdErr) : err && cERR(err, undefined)
   },
   PONG: cPONG,
 }
 
-export function smpCommandP(p: Parser): SomeCommand | undefined {
+export function parseSMPCommand(s: string): SMPCommand | undefined {
+  const p = new Parser(s)
+  const cmd = smpCommandP(p)
+  return cmd && p.end() ? cmd : undefined
+}
+
+export function smpCommandP(p: Parser): SMPCommand | undefined {
   let cmd: CmdTag | undefined
   return ((cmd = p.someStr(cmdTags)) && smpCmdParsers[cmd](p)) || undefined
 }

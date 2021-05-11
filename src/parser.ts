@@ -33,13 +33,13 @@ export class Parser {
 
   // takes the passed string
   str(s: string): boolean {
-    return this.s.indexOf(s, this.pos) === 0 ? ((this.pos += s.length), true) : false
+    return this.s.indexOf(s, this.pos) === this.pos ? ((this.pos += s.length), true) : false
   }
 
   // takes one of the passed strings
   someStr<T extends readonly string[]>(ss: T): T[number] | undefined {
     for (const s of ss) {
-      if (this.s.indexOf(s, this.pos) === 0) {
+      if (this.s.indexOf(s, this.pos) === this.pos) {
         this.pos += s.length
         return s
       }
@@ -47,10 +47,17 @@ export class Parser {
     return undefined
   }
 
-  // TODO stub
-  // takes decimal digits and returns them as number
+  // takes decimal digits (at least 1)
   decimal(): number | undefined {
-    return 0
+    const {pos} = this
+    while (this.digit());
+    return this.pos > pos ? +this.s.slice(pos, this.pos) : undefined
+  }
+
+  // takes exactly 1 decimal digit
+  digit(): string | undefined {
+    const c = this.s[this.pos]
+    return c >= "0" && c <= "9" ? (this.pos++, c) : undefined
   }
 
   // TODO stub

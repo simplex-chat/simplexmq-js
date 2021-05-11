@@ -1,8 +1,8 @@
 {
-  "include": ["src"],
+  "include": ["src", "tests"],
   "compilerOptions": {
     "outDir": "dist",
-    "types": ["node"],
+    "types": ["node", "jest"],
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitAny": true,
