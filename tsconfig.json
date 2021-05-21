@@ -1,8 +1,8 @@
 {
-  "include": ["src"],
+  "include": ["src", "tests"],
   "compilerOptions": {
     "outDir": "dist",
-    "types": ["node"],
+    "types": ["node", "jest"],
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitAny": true,
@@ -15,7 +15,7 @@
     "strictNullChecks": true,
     "target": "ES2018",
     "declaration": true,
-    "lib": ["ES2018"],
+    "lib": ["ES2018", "DOM"],
     "module": "CommonJS",
     "moduleResolution": "Node"
   }
