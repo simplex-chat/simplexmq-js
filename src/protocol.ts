@@ -1,6 +1,6 @@
 import {Parser, isAlphaNum} from "./parser"
 
-enum Party {
+export enum Party {
   Recipient = "R",
   Sender = "S",
   Broker = "B",

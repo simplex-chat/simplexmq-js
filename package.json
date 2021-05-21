@@ -5,10 +5,11 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
+    "build": "rm -rf dist && tsc",
     "prettier:write": "prettier --write './**/*.{json,yaml,js,ts}'",
     "prettier:check": "prettier --list-different './**/*.{json,yaml,js,ts}'",
     "eslint": "eslint --ext .ts ./src/**/*",
-    "test": "npm run prettier:check && npm run eslint && jest"
+    "test": "npm run prettier:check && npm run eslint && jest --coverage"
   },
   "repository": {
     "type": "git",
