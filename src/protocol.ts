@@ -36,20 +36,20 @@ interface Command<P extends Party, C extends CmdTag<P>> {
   [x: string]: unknown
 }
 
-type NEW = Command<Party.Recipient, "NEW"> & {rcvPubKey: string} // TODO type
-type SUB = Command<Party.Recipient, "SUB">
-type KEY = Command<Party.Recipient, "KEY"> & {sndPubKey: string} // TODO type
-type ACK = Command<Party.Recipient, "ACK">
-type OFF = Command<Party.Recipient, "OFF">
-type DEL = Command<Party.Recipient, "DEL">
-type SEND = Command<Party.Sender, "SEND"> & {msgBody: string} // TODO type?
-type PING = Command<Party.Sender, "PING">
-type IDS = Command<Party.Broker, "IDS"> & {rcvId: string; sndId: string} // TODO type?
-type MSG = Command<Party.Broker, "MSG"> & {msgId: string; ts: Date; msgBody: string} // TODO types?
-type END = Command<Party.Broker, "END">
-type OK = Command<Party.Broker, "OK">
-type ERR<E extends ErrorType = ErrorType> = Command<Party.Broker, "ERR"> & {error: E; cmdError: ErrorSubType<E>}
-type PONG = Command<Party.Broker, "PONG">
+export type NEW = Command<Party.Recipient, "NEW"> & {rcvPubKey: string} // TODO type
+export type SUB = Command<Party.Recipient, "SUB">
+export type KEY = Command<Party.Recipient, "KEY"> & {sndPubKey: string} // TODO type
+export type ACK = Command<Party.Recipient, "ACK">
+export type OFF = Command<Party.Recipient, "OFF">
+export type DEL = Command<Party.Recipient, "DEL">
+export type SEND = Command<Party.Sender, "SEND"> & {msgBody: string} // TODO type?
+export type PING = Command<Party.Sender, "PING">
+export type IDS = Command<Party.Broker, "IDS"> & {rcvId: string; sndId: string} // TODO type?
+export type MSG = Command<Party.Broker, "MSG"> & {msgId: string; ts: Date; msgBody: string} // TODO types?
+export type END = Command<Party.Broker, "END">
+export type OK = Command<Party.Broker, "OK">
+export type ERR<E extends ErrorType = ErrorType> = Command<Party.Broker, "ERR"> & {error: E; cmdError: ErrorSubType<E>}
+export type PONG = Command<Party.Broker, "PONG">
 
 const smpErrors = ["BLOCK", "CMD", "AUTH", "NO_MSG", "INTERNAL"] as const
 
