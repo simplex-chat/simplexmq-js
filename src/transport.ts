@@ -61,3 +61,18 @@ function withTimeout<T>(ms: number, action: () => Promise<T>): Promise<T> {
 function delay(ms?: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms))
 }
+
+// export class THandle {
+//   constructor(
+//     private readonly conn: Transport,
+//     private readonly sndKey: SessionKey,
+//     private readonly rcvKey: SessionKey,
+//     private readonly blockSize: number
+//   ) {}
+// }
+
+// interface SessionKey {
+//   aesKey:
+//   baseIV:
+//   counter: number
+// }
