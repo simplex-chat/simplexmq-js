@@ -1,4 +1,18 @@
-type KeyType = "encrypt" | "verify"
+export enum KeyType {
+  Encrypt = "encrypt",
+  Verify = "verify",
+}
+
+enum PrivateType {
+  Decrypt = "decrypt",
+  Sign = "sign",
+}
+
+type PrivateUsage<T extends KeyType = KeyType> = T extends KeyType.Encrypt
+  ? PrivateType.Decrypt
+  : T extends KeyType.Verify
+  ? PrivateType.Sign
+  : PrivateType
 
 interface KeyInfo {
   algorithm: string
@@ -16,24 +30,24 @@ const keyInfo: {[K in KeyType]: KeyInfo} = {
   },
 }
 
-type PublicKey = CryptoKey & {type: "public"}
+type PublicKey<T extends KeyType = KeyType> = CryptoKey & {type: "public"; usages: [T]}
 
-type PrivateKey = CryptoKey & {type: "private"}
+type PrivateKey<T extends PrivateType = PrivateType> = CryptoKey & {type: "private"; usages: [T]}
 
-interface KeyPair {
-  publicKey: PublicKey
-  privateKey: PrivateKey
+interface KeyPair<T extends KeyType> {
+  publicKey: PublicKey<T>
+  privateKey: PrivateKey<PrivateUsage<T>>
 }
 
 export class CryptoError extends Error {}
 
-export async function generateKeyPair(size: number, keyType: KeyType): Promise<KeyPair> {
+export async function generateKeyPair<T extends KeyType>(size: number, keyType: T): Promise<KeyPair<T>> {
   const info = keyInfo[keyType]
   return (await crypto.subtle.generateKey(
     {name: info.algorithm, modulusLength: size, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256"},
     true,
     info.usage
-  )) as KeyPair
+  )) as KeyPair<T>
 }
 
 export function encodePubKey(key: PublicKey): Promise<ArrayBuffer> {
@@ -42,6 +56,14 @@ export function encodePubKey(key: PublicKey): Promise<ArrayBuffer> {
 
 export function encodePrivKey(key: PrivateKey): Promise<ArrayBuffer> {
   return crypto.subtle.exportKey("pkcs8", key)
+}
+
+export function encryptOAEP(key: PublicKey<KeyType.Encrypt>, data: ArrayBuffer): Promise<ArrayBuffer> {
+  return crypto.subtle.encrypt({name: "RSA-OAEP"}, key, data)
+}
+
+export function decryptOAEP(key: PrivateKey<PrivateType.Decrypt>, data: ArrayBuffer): Promise<ArrayBuffer> {
+  return crypto.subtle.decrypt({name: "RSA-OAEP"}, key, data)
 }
 
 type AESKey = CryptoKey & {type: "secret"}

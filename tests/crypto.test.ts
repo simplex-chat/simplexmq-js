@@ -1,5 +1,15 @@
 import "./browser_globals"
-import {randomAESKey, randomIV, encryptAES, decryptAES, decryptAESData} from "../src/crypto"
+import {
+  KeyType,
+  randomAESKey,
+  randomIV,
+  encryptAES,
+  decryptAES,
+  decryptAESData,
+  generateKeyPair,
+  encryptOAEP,
+  decryptOAEP,
+} from "../src/crypto"
 import * as assert from "assert"
 
 describe("AES-GCM encryption with padding", () => {
@@ -20,5 +30,17 @@ describe("AES-GCM encryption with padding", () => {
       const str = new TextDecoder().decode(decrypted)
       assert.strictEqual(str, "hello" + "#".repeat(32 - "hello".length))
     }
+  })
+})
+
+describe("RSA-OAEP encryption", () => {
+  test("encrypt and decrypt", async () => {
+    const {publicKey, privateKey} = await generateKeyPair(2048, KeyType.Encrypt)
+    const data = new TextEncoder().encode("hello there")
+    const encrypted = await encryptOAEP(publicKey, data)
+    assert.strictEqual(encrypted.byteLength, 2048 / 8)
+
+    const decrypted = await decryptOAEP(privateKey, encrypted)
+    assert.strictEqual(new TextDecoder().decode(decrypted), "hello there")
   })
 })
