@@ -9,6 +9,10 @@ import {
   generateKeyPair,
   encryptOAEP,
   decryptOAEP,
+  encryptE2E,
+  decryptE2E,
+  sign,
+  verify,
 } from "../src/crypto"
 import * as assert from "assert"
 
@@ -22,11 +26,10 @@ describe("AES-GCM encryption with padding", () => {
     assert.strictEqual(res.authTag.byteLength, 16)
     assert.strictEqual(res.encryptedAndTag.byteLength, 32 + 16)
 
-    await testDecryption(decryptAES(key, iv, res.encrypted, res.authTag))
-    await testDecryption(decryptAESData(key, iv, res.encryptedAndTag))
+    testDecryption(await decryptAES(key, iv, res.encryptedAndTag))
+    testDecryption(await decryptAESData(key, iv, res))
 
-    async function testDecryption(decryptRes: Promise<ArrayBuffer>): Promise<void> {
-      const decrypted = await decryptRes
+    function testDecryption(decrypted: ArrayBuffer): void {
       const str = new TextDecoder().decode(decrypted)
       assert.strictEqual(str, "hello" + "#".repeat(32 - "hello".length))
     }
@@ -42,5 +45,27 @@ describe("RSA-OAEP encryption", () => {
 
     const decrypted = await decryptOAEP(privateKey, encrypted)
     assert.strictEqual(new TextDecoder().decode(decrypted), "hello there")
+  })
+})
+
+describe("RSA-PSS signature verification", () => {
+  test("sign and verify", async () => {
+    const {publicKey, privateKey} = await generateKeyPair(2048, KeyType.Verify)
+    const data = new TextEncoder().encode("hello there")
+    const sig = await sign(privateKey, data)
+    const ok = await verify(publicKey, sig, data)
+    assert.strictEqual(ok, true)
+  })
+})
+
+describe("SMP agent E2E encryption", () => {
+  test("encrypt and decrypt", async () => {
+    const {publicKey, privateKey} = await generateKeyPair(2048, KeyType.Encrypt)
+    const data = new TextEncoder().encode("hello there again")
+    const encrypted = await encryptE2E(publicKey, 1024, data)
+    assert.strictEqual(encrypted.byteLength, 1024 + 256)
+
+    const decrypted = await decryptE2E(privateKey, encrypted)
+    assert.strictEqual(new TextDecoder().decode(decrypted), "hello there again")
   })
 })
