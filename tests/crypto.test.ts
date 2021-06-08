@@ -18,11 +18,11 @@ describe("AES-GCM encryption with padding", () => {
     const iv = randomIV()
     const data = new TextEncoder().encode("hello")
     const res = await encryptAES(key, iv, 32, data)
-    assert.strictEqual(res.encryptedView.byteLength, 32)
-    assert.strictEqual(res.authTagView.byteLength, 16)
+    assert.strictEqual(res.encrypted.byteLength, 32)
+    assert.strictEqual(res.authTag.byteLength, 16)
     assert.strictEqual(res.encryptedAndTag.byteLength, 32 + 16)
 
-    await testDecryption(decryptAES(key, iv, res.encryptedView, res.authTagView))
+    await testDecryption(decryptAES(key, iv, res.encrypted, res.authTag))
     await testDecryption(decryptAESData(key, iv, res.encryptedAndTag))
 
     async function testDecryption(decryptRes: Promise<ArrayBuffer>): Promise<void> {
