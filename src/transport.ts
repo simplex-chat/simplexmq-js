@@ -14,7 +14,10 @@ import {
   concatN,
   encodeInt32,
   encodeInt16,
+  encryptAES,
+  decryptAES,
   decryptAESData,
+  authTagSize,
 } from "./crypto"
 
 export class TransportError extends Error {}
@@ -79,7 +82,20 @@ function delay(ms?: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms))
 }
 
-async function tGetEncrypted({conn, rcvKey, blockSize}: THandle): Promise<ArrayBuffer> {
+export async function tPutEncrypted({conn, sndKey, blockSize}: THandle, data: ArrayBuffer): Promise<void> {
+  const iv = nextIV(sndKey)
+  const {encrypted, authTag} = await encryptAES(sndKey.aesKey, iv, blockSize - authTagSize, data)
+  return conn.write(new Uint8Array(concat(authTag, encrypted)))
+}
+
+// TODO change server in v0.4 to match (auth tag should be appended to the end)
+export async function tPutEncrypted1({conn, sndKey, blockSize}: THandle, data: ArrayBuffer): Promise<void> {
+  const iv = nextIV(sndKey)
+  const {encryptedAndTag} = await encryptAES(sndKey.aesKey, iv, blockSize - authTagSize, data)
+  return conn.write(new Uint8Array(encryptedAndTag))
+}
+
+export async function tGetEncrypted({conn, rcvKey, blockSize}: THandle): Promise<ArrayBuffer> {
   return decryptBlock(rcvKey, await conn.read(blockSize))
 }
 
@@ -89,6 +105,13 @@ async function decryptBlock(k: SessionKey, block: ArrayBuffer): Promise<ArrayBuf
   const encrypted = a.subarray(16)
   const iv = nextIV(k)
   return decryptAESData(k.aesKey, iv, {encrypted, authTag})
+}
+
+// TODO change server in v0.4 to match (auth tag should be appended to the end)
+export async function tGetEncrypted1({conn, rcvKey, blockSize}: THandle): Promise<ArrayBuffer> {
+  const block = await conn.read(blockSize)
+  const iv = nextIV(rcvKey)
+  return decryptAES(rcvKey.aesKey, iv, block)
 }
 
 function nextIV(k: SessionKey): ArrayBuffer {

@@ -155,6 +155,8 @@ export function randomIV(): ArrayBuffer {
 
 const PADDING = "#".charCodeAt(0)
 
+export const authTagSize = 16
+
 interface AESEncryptedData {
   readonly encryptedAndTag?: ArrayBuffer // array buffer with encrypted data and appended auth tag
   readonly encrypted: ArrayBuffer // view to encrypted data part
