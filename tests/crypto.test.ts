@@ -5,6 +5,7 @@ import {
   randomIV,
   encryptAES,
   decryptAES,
+  encryptAESData,
   decryptAESData,
   generateKeyPair,
   encryptOAEP,
@@ -17,23 +18,29 @@ import {
 import * as assert from "assert"
 
 describe("AES-GCM encryption with padding", () => {
-  test("encrypt and decrypt", async () => {
+  test("encrypt and decrypt with appended auth tag", async () => {
     const key = await randomAESKey()
     const iv = randomIV()
     const data = new TextEncoder().encode("hello")
     const res = await encryptAES(key, iv, 32, data)
+    assert.strictEqual(res.byteLength, 32 + 16)
+    testDecryption(await decryptAES(key, iv, res))
+  })
+
+  test("encrypt and decrypt", async () => {
+    const key = await randomAESKey()
+    const iv = randomIV()
+    const data = new TextEncoder().encode("hello")
+    const res = await encryptAESData(key, iv, 32, data)
     assert.strictEqual(res.encrypted.byteLength, 32)
     assert.strictEqual(res.authTag.byteLength, 16)
-    assert.strictEqual(res.encryptedAndTag.byteLength, 32 + 16)
-
-    testDecryption(await decryptAES(key, iv, res.encryptedAndTag))
     testDecryption(await decryptAESData(key, iv, res))
-
-    function testDecryption(decrypted: ArrayBuffer): void {
-      const str = new TextDecoder().decode(decrypted)
-      assert.strictEqual(str, "hello" + "#".repeat(32 - "hello".length))
-    }
   })
+
+  function testDecryption(decrypted: ArrayBuffer): void {
+    const str = new TextDecoder().decode(decrypted)
+    assert.strictEqual(str, "hello" + "#".repeat(32 - "hello".length))
+  }
 })
 
 describe("RSA-OAEP encryption", () => {

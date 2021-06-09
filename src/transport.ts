@@ -16,6 +16,7 @@ import {
   encodeInt16,
   encryptAES,
   decryptAES,
+  encryptAESData,
   decryptAESData,
   authTagSize,
 } from "./crypto"
@@ -84,15 +85,15 @@ function delay(ms?: number): Promise<void> {
 
 export async function tPutEncrypted({conn, sndKey, blockSize}: THandle, data: ArrayBuffer): Promise<void> {
   const iv = nextIV(sndKey)
-  const {encrypted, authTag} = await encryptAES(sndKey.aesKey, iv, blockSize - authTagSize, data)
+  const {encrypted, authTag} = await encryptAESData(sndKey.aesKey, iv, blockSize - authTagSize, data)
   return conn.write(new Uint8Array(concat(authTag, encrypted)))
 }
 
 // TODO change server in v0.4 to match (auth tag should be appended to the end)
 export async function tPutEncrypted1({conn, sndKey, blockSize}: THandle, data: ArrayBuffer): Promise<void> {
   const iv = nextIV(sndKey)
-  const {encryptedAndTag} = await encryptAES(sndKey.aesKey, iv, blockSize - authTagSize, data)
-  return conn.write(new Uint8Array(encryptedAndTag))
+  const block = await encryptAES(sndKey.aesKey, iv, blockSize - authTagSize, data)
+  return conn.write(new Uint8Array(block))
 }
 
 export async function tGetEncrypted({conn, rcvKey, blockSize}: THandle): Promise<ArrayBuffer> {

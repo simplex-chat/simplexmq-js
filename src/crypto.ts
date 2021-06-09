@@ -99,7 +99,7 @@ export async function parseHeader(b: ArrayBuffer): Promise<Header> {
 export async function encryptE2E(k: PublicKey<KeyType.Encrypt>, paddedSize: number, data: ArrayBuffer): Promise<ArrayBuffer> {
   const aesKey = await randomAESKey()
   const ivBytes = randomIV()
-  const {authTag, encrypted} = await encryptAES(aesKey, ivBytes, paddedSize, data)
+  const {authTag, encrypted} = await encryptAESData(aesKey, ivBytes, paddedSize, data)
   const header = {aesKey, ivBytes, authTag, msgSize: data.byteLength}
   const encHeader = await encryptOAEP(k, await serializeHeader(header))
   return concat(encHeader, encrypted)
@@ -158,27 +158,23 @@ const PADDING = "#".charCodeAt(0)
 export const authTagSize = 16
 
 interface AESEncryptedData {
-  readonly encryptedAndTag?: ArrayBuffer // array buffer with encrypted data and appended auth tag
   readonly encrypted: ArrayBuffer // view to encrypted data part
   readonly authTag: ArrayBuffer // view to auth tag part
 }
 
-export async function encryptAES(
-  key: AESKey,
-  iv: ArrayBuffer,
-  paddedSize: number,
-  data: ArrayBuffer
-): Promise<Required<AESEncryptedData>> {
-  if (data.byteLength >= paddedSize) throw new CryptoError("large message")
-  const paddedData = new Uint8Array(paddedSize)
-  paddedData.set(new Uint8Array(data), 0)
-  paddedData.fill(PADDING, data.byteLength)
-  const encryptedAndTag = await crypto.subtle.encrypt({name: "AES-GCM", iv}, key, paddedData)
-  const enc = new Uint8Array(encryptedAndTag)
+export async function encryptAES(key: AESKey, iv: ArrayBuffer, padTo: number, data: ArrayBuffer): Promise<ArrayBuffer> {
+  if (data.byteLength >= padTo) throw new CryptoError("large message")
+  const padded = new Uint8Array(padTo)
+  padded.set(new Uint8Array(data), 0)
+  padded.fill(PADDING, data.byteLength)
+  return crypto.subtle.encrypt({name: "AES-GCM", iv}, key, padded)
+}
+
+export async function encryptAESData(key: AESKey, iv: ArrayBuffer, padTo: number, data: ArrayBuffer): Promise<AESEncryptedData> {
+  const enc = new Uint8Array(await encryptAES(key, iv, padTo, data))
   return {
-    encryptedAndTag,
-    encrypted: enc.subarray(0, paddedSize),
-    authTag: enc.subarray(paddedSize),
+    encrypted: enc.subarray(0, padTo),
+    authTag: enc.subarray(padTo),
   }
 }
 
