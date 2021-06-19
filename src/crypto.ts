@@ -1,3 +1,5 @@
+import {concat, concatN, encodeInt32} from "./buffer"
+
 export enum KeyType {
   Encrypt = "encrypt",
   Verify = "verify",
@@ -76,13 +78,13 @@ export function decodePrivateKey<T extends KeyType>(rawKey: ArrayBuffer, keyType
 
 interface Header {
   readonly aesKey: AESKey
-  readonly ivBytes: ArrayBuffer
-  readonly authTag: ArrayBuffer
+  readonly ivBytes: Uint8Array
+  readonly authTag: Uint8Array
   readonly msgSize: number
 }
 
-export async function serializeHeader(h: Header): Promise<ArrayBuffer> {
-  const key = await encodeAESKey(h.aesKey)
+export async function serializeHeader(h: Header): Promise<Uint8Array> {
+  const key = new Uint8Array(await encodeAESKey(h.aesKey))
   return concatN(key, h.ivBytes, h.authTag, encodeInt32(h.msgSize))
 }
 
@@ -102,7 +104,7 @@ export async function encryptE2E(k: PublicKey<KeyType.Encrypt>, paddedSize: numb
   const {authTag, encrypted} = await encryptAESData(aesKey, ivBytes, paddedSize, data)
   const header = {aesKey, ivBytes, authTag, msgSize: data.byteLength}
   const encHeader = await encryptOAEP(k, await serializeHeader(header))
-  return concat(encHeader, encrypted)
+  return concat(new Uint8Array(encHeader), encrypted)
 }
 
 export async function decryptE2E(pk: PrivateKey<PrivateType.Decrypt>, data: ArrayBuffer): Promise<ArrayBuffer> {
@@ -149,8 +151,8 @@ export function decodeAESKey(rawKey: ArrayBuffer): Promise<AESKey> {
   return crypto.subtle.importKey("raw", rawKey, "AES-GCM", true, ["encrypt", "decrypt"]) as Promise<AESKey>
 }
 
-export function randomIV(): ArrayBuffer {
-  return crypto.getRandomValues(new Uint8Array(16)).buffer
+export function randomIV(): Uint8Array {
+  return crypto.getRandomValues(new Uint8Array(16))
 }
 
 const PADDING = "#".charCodeAt(0)
@@ -158,8 +160,8 @@ const PADDING = "#".charCodeAt(0)
 export const authTagSize = 16
 
 interface AESEncryptedData {
-  readonly encrypted: ArrayBuffer // view to encrypted data part
-  readonly authTag: ArrayBuffer // view to auth tag part
+  readonly encrypted: Uint8Array // view to encrypted data part
+  readonly authTag: Uint8Array // view to auth tag part
 }
 
 export async function encryptAES(key: AESKey, iv: ArrayBuffer, padTo: number, data: ArrayBuffer): Promise<ArrayBuffer> {
@@ -188,32 +190,4 @@ export function decryptAESData(key: AESKey, iv: ArrayBuffer, e: AESEncryptedData
 
 export function sha256(data: ArrayBuffer): Promise<ArrayBuffer> {
   return crypto.subtle.digest("SHA-256", data)
-}
-
-export function concat(b1: ArrayBuffer, b2: ArrayBuffer): ArrayBuffer {
-  const a = new Uint8Array(b1.byteLength + b2.byteLength)
-  a.set(new Uint8Array(b1), 0)
-  a.set(new Uint8Array(b2), b1.byteLength)
-  return a.buffer
-}
-
-export function concatN(...bs: ArrayBuffer[]): ArrayBuffer {
-  const a = new Uint8Array(bs.reduce((size, b) => size + b.byteLength, 0))
-  bs.reduce((offset, b: ArrayBuffer) => {
-    a.set(new Uint8Array(b), offset)
-    return offset + b.byteLength
-  }, 0)
-  return a.buffer
-}
-
-export function encodeInt32(n: number): ArrayBuffer {
-  const res = new ArrayBuffer(4)
-  new DataView(res).setUint32(0, n)
-  return res
-}
-
-export function encodeInt16(n: number): ArrayBuffer {
-  const res = new ArrayBuffer(2)
-  new DataView(res).setUint16(0, n)
-  return res
 }

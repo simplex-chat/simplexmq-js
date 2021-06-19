@@ -2,6 +2,7 @@ import "./browser_globals"
 import {WS, clientHandshake} from "../src/transport"
 import * as Ws from "ws"
 import * as assert from "assert"
+import {encodeAscii, decodeBase64} from "../src/buffer"
 
 describe("WS: WebSocket client transport", () => {
   test("transport API", async () => {
@@ -20,10 +21,10 @@ describe("WS: WebSocket client transport", () => {
   })
 })
 
-describe.skip("SMP transport handshake", () => {
+describe("SMP transport handshake", () => {
   test("should agree session keys (expects SMP server on localhost:80)", async () => {
     const conn = await WS.connect("ws://localhost:80", 1000, 10)
-    const th = await clientHandshake(conn)
+    const th = await clientHandshake(conn, decodeBase64(encodeAscii("bU0K+bRg24xWW//lS0umO1Zdw/SXqpJNtm1/RrPLViE=")))
     assert(th.conn instanceof WS)
     await conn.close()
   })

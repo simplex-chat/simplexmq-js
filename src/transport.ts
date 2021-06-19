@@ -10,16 +10,13 @@ import {
   encodeAESKey,
   encryptOAEP,
   randomIV,
-  concat,
-  concatN,
-  encodeInt32,
-  encodeInt16,
   encryptAES,
   decryptAES,
   encryptAESData,
   decryptAESData,
   authTagSize,
 } from "./crypto"
+import {concat, concatN, encodeInt32, encodeInt16} from "./buffer"
 
 export class TransportError extends Error {}
 
@@ -116,7 +113,7 @@ export async function tGetEncrypted1({conn, rcvKey, blockSize}: THandle): Promis
 }
 
 function nextIV(k: SessionKey): ArrayBuffer {
-  const c = new Uint8Array(encodeInt32(k.counter++))
+  const c = encodeInt32(k.counter++)
   const start = k.baseIV.slice(0, 4)
   const rest = k.baseIV.slice(4)
   start.forEach((b, i) => (start[i] = b ^ c[i]))
@@ -136,8 +133,8 @@ interface SessionKey {
   counter: number
 }
 
-async function serializeSessionKey(k: SessionKey): Promise<ArrayBuffer> {
-  return concat(await encodeAESKey(k.aesKey), k.baseIV)
+async function serializeSessionKey(k: SessionKey): Promise<Uint8Array> {
+  return concat(new Uint8Array(await encodeAESKey(k.aesKey)), k.baseIV)
 }
 
 interface ServerHeader {
@@ -168,7 +165,7 @@ interface ClientHandshake {
   readonly rcvKey: SessionKey
 }
 
-async function serializeClientHandshake(h: ClientHandshake): Promise<ArrayBuffer> {
+async function serializeClientHandshake(h: ClientHandshake): Promise<Uint8Array> {
   return concatN(
     encodeInt32(h.blockSize),
     encodeInt16(binaryRsaTransport),
@@ -207,7 +204,7 @@ const maxTransportBlockSize = 65536
 // Client SMP encrypted transport handshake.
 // See https://github.com/simplex-chat/simplexmq/blob/master/protocol/simplex-messaging.md#appendix-a
 // The numbers in function names refer to the steps in the document.
-export async function clientHandshake(conn: Transport, keyHash?: ArrayBuffer): Promise<THandle> {
+export async function clientHandshake(conn: Transport, keyHash?: Uint8Array): Promise<THandle> {
   const {serverKey, blockSize} = await getHeaderAndPublicKey_1_2(conn, keyHash)
   const keys: ClientHandshake = await getClientHandshake_3(blockSize)
   await sendEncryptedKeys_4(conn, serverKey, keys)
@@ -216,7 +213,7 @@ export async function clientHandshake(conn: Transport, keyHash?: ArrayBuffer): P
   return th
 }
 
-async function getHeaderAndPublicKey_1_2(c: Transport, keyHash?: ArrayBuffer): Promise<ServerHandshake> {
+async function getHeaderAndPublicKey_1_2(c: Transport, keyHash?: Uint8Array): Promise<ServerHandshake> {
   const header = await c.read(serverHeaderSize)
   const {blockSize, keySize} = parseServerHeader(header)
   if (blockSize < transportBlockSize || blockSize > maxTransportBlockSize) {
@@ -228,11 +225,11 @@ async function getHeaderAndPublicKey_1_2(c: Transport, keyHash?: ArrayBuffer): P
   return {serverKey, blockSize}
 }
 
-async function validateKeyHash_2(rawKey: ArrayBuffer, keyHash: ArrayBuffer): Promise<void> {
+async function validateKeyHash_2(rawKey: ArrayBuffer, keyHash: Uint8Array): Promise<void> {
   const hash = await sha256(rawKey)
   if (keyHash.byteLength === 32 && hash.byteLength === 32) {
-    const h = new Uint32Array(hash)
-    if (new Uint32Array(keyHash).every((n, i) => n === h[i])) return
+    const h = new Uint8Array(hash)
+    if (keyHash.every((n, i) => n === h[i])) return
   }
   throw new TransportError(`transport handshake error: key hash does not match`)
 }
