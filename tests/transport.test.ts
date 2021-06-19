@@ -21,7 +21,7 @@ describe("WS: WebSocket client transport", () => {
   })
 })
 
-describe("SMP transport handshake", () => {
+describe.skip("SMP transport handshake", () => {
   test("should agree session keys (expects SMP server on localhost:80)", async () => {
     const conn = await WS.connect("ws://localhost:80", 1000, 10)
     const th = await clientHandshake(conn, decodeBase64(encodeAscii("bU0K+bRg24xWW//lS0umO1Zdw/SXqpJNtm1/RrPLViE=")))
