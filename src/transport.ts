@@ -187,7 +187,7 @@ function parseSMPVersion(block: ArrayBuffer): SMPVersion {
     .decode(a.subarray(0, i))
     .split(".")
     .map((n) => +n)
-  if (version.length === 4 && version.every((n) => !Number.isNaN(n))) return (version as unknown) as SMPVersion
+  if (version.length === 4 && version.every((n) => !Number.isNaN(n))) return version as unknown as SMPVersion
   throw new Error("transport handshake error: cannot parse version")
 }
 
