@@ -16,7 +16,7 @@ import {
   decryptAESData,
   authTagSize,
 } from "./crypto"
-import {concat, concatN, encodeInt32, encodeInt16} from "./buffer"
+import {concat, concatN, encodeInt32, encodeInt16, decodeAscii, space} from "./buffer"
 
 export class TransportError extends Error {}
 
@@ -176,15 +176,12 @@ async function serializeClientHandshake(h: ClientHandshake): Promise<Uint8Array>
 
 type SMPVersion = readonly [number, number, number, number]
 
-const asciiDecoder = new TextDecoder("ascii")
-
 function parseSMPVersion(block: ArrayBuffer): SMPVersion {
   // TODO better parsing
   const a = new Uint8Array(block)
   let i = 0
-  while (i < 50 && i < a.length && a[i] !== 32) i++
-  const version = asciiDecoder
-    .decode(a.subarray(0, i))
+  while (i < 50 && i < a.length && a[i] !== space) i++
+  const version = decodeAscii(a.subarray(0, i))
     .split(".")
     .map((n) => +n)
   if (version.length === 4 && version.every((n) => !Number.isNaN(n))) return version as unknown as SMPVersion
