@@ -1,11 +1,8 @@
-export function atob(s: string): string {
-  return Buffer.from(s, "base64").toString()
-}
+/* eslint-disable @typescript-eslint/no-var-requires */
+const Ws = require("isomorphic-ws") as typeof WebSocket
 
-Object.defineProperty(global, "atob", {value: atob})
+Object.defineProperty(global, "WebSocket", {value: Ws})
 
-export function btoa(s: string): string {
-  return Buffer.from(s).toString("base64")
-}
+const cr = require("isomorphic-webcrypto") as typeof crypto
 
-Object.defineProperty(global, "btoa", {value: btoa})
+Object.defineProperty(global, "crypto", {value: cr})

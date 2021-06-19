@@ -1,9 +1,13 @@
-export type ParserFunc<T> = (p?: Parser) => T | "" | undefined
+import {space, char_equal, decodeAscii, decodeBase64} from "./buffer"
+
+export type ParserFunc<T> = (p?: Parser) => T | undefined
+
+export type BinaryTags<T extends string> = {[K in T]: Uint8Array}
 
 export class Parser {
   private readonly positions: number[] = []
   private pos = 0
-  constructor(private readonly s: string) {}
+  constructor(private readonly s: Uint8Array) {}
 
   try<T>(parser: ParserFunc<T>): T | undefined {
     this.positions.push(this.pos)
@@ -14,35 +18,37 @@ export class Parser {
   }
 
   // takes a required number of bytes
-  take(len: number): string | undefined {
-    const len1 = this.pos + len
-    if (len1 > this.s.length) return undefined
-    const res = this.s.slice(this.pos, len1)
-    this.pos = len1
+  take(len: number): Uint8Array | undefined {
+    const end = this.pos + len
+    if (end > this.s.length) return undefined
+    const res = this.s.subarray(this.pos, end)
+    this.pos = end
     return res
   }
 
   // takes chars while condition is true, e.g. function isAlphaNum or isDigit can be used
-  takeWhile(f: (s: string) => boolean): string {
-    const {pos} = this
-    while (f(this.s[this.pos])) this.pos++
-    return this.pos > pos ? this.s.slice(pos, this.pos) : ""
+  takeWhile(f: (c: number) => boolean): Uint8Array {
+    return this.takeWhile1(f) || new Uint8Array(0)
   }
 
   // takes chars (> 0) while condition is true, e.g. function isAlphaNum or isDigit can be used
-  takeWhile1(f: (s: string) => boolean): string | undefined {
-    return this.takeWhile(f) || undefined
+  takeWhile1(f: (c: number) => boolean): Uint8Array | undefined {
+    const {pos} = this
+    while (f(this.s[this.pos])) this.pos++
+    return this.pos > pos ? this.s.subarray(pos, this.pos) : undefined
   }
 
-  // takes specific characters
-  takeWhileChar(c: string): string {
+  // takes base-64 encoded string and returns decoded binary
+  takeBase64(): Uint8Array | undefined {
     const {pos} = this
-    while (this.s[this.pos] === c) this.pos++
-    return this.pos > pos ? this.s.slice(pos, this.pos) : ""
+    let c: number
+    while (((c = this.s[this.pos]), isAlphaNum(c) || c === char_plus || c === char_slash)) this.pos++
+    if (this.char(char_equal)) this.char(char_equal)
+    return this.pos > pos ? decodeBase64(this.s.subarray(pos, this.pos)) : undefined
   }
 
   many<T>(parser: ParserFunc<T>): T[] {
-    let el: T | "" | undefined
+    let el: T | undefined
     const res: T[] = []
     while ((el = parser(this))) res.push(el)
     return res
@@ -54,45 +60,67 @@ export class Parser {
   }
 
   // takes the word (possibly empty) until the first space or until the end of the string
-  word(range?: number): string {
-    const pos = range ? this.s.slice(this.pos, this.pos + range).indexOf(" ") + this.pos : this.s.indexOf(" ", this.pos)
-    let res: string
-    ;[res, this.pos] = pos >= this.pos ? [this.s.slice(this.pos, pos), pos] : [this.s.slice(this.pos), this.s.length]
+  word(range?: number): Uint8Array {
+    const pos = range ? this.s.subarray(this.pos, this.pos + range).indexOf(space) + this.pos : this.s.indexOf(space, this.pos)
+    let res: Uint8Array
+    ;[res, this.pos] = pos >= this.pos ? [this.s.subarray(this.pos, pos), pos] : [this.s.subarray(this.pos), this.s.length]
     return res
   }
 
   // takes the passed string
-  str(s: string): true | undefined {
-    return this.s.indexOf(s, this.pos) === this.pos ? ((this.pos += s.length), true) : undefined
+  str(s: Uint8Array): true | undefined {
+    for (let i = 0, j = this.pos; i < s.length; i++, j++) {
+      if (s[i] !== this.s[j]) return undefined
+    }
+    this.pos += s.length
+    return true
   }
 
-  // takes one of the passed strings
-  someStr<T extends readonly string[]>(ss: T): T[number] | undefined {
-    for (const s of ss) {
-      if (this.s.indexOf(s, this.pos) === this.pos) {
-        this.pos += s.length
-        return s
+  // takes the passed char
+  char(c: number): true | undefined {
+    if (this.s[this.pos] === c) {
+      this.pos++
+      return true
+    }
+    return
+  }
+
+  // takes one of the passed tags and returns the key
+  someStr<T extends string>(ss: BinaryTags<T>): T | undefined {
+    outer: for (const k in ss) {
+      const s = new Uint8Array(ss[k])
+      for (let i = 0, j = this.pos; i < s.length; i++, j++) {
+        if (s[i] !== this.s[j]) continue outer
       }
+      this.pos += s.length
+      return k
     }
     return undefined
   }
 
-  // takes decimal digits (at least 1)
+  // takes decimal digits (at least 1) and returns a number
   decimal(): number | undefined {
     const s = this.takeWhile1(isDigit)
-    return s ? +s : undefined
+    if (s === undefined) return
+    let n = 0
+    let i = s.length
+    while (i--) {
+      n *= 10
+      n += s[i] - char_0
+    }
+    return n
   }
 
   // takes ISO8601 date and returns as Date object
   date(): Date | undefined {
     const s = this.word()
-    const d = s && new Date(s)
+    const d = s.length && new Date(decodeAscii(s))
     return d && !isNaN(d.valueOf()) ? d : undefined
   }
 
   // takes the space
   space(): true | undefined {
-    return this.s[this.pos] === " " ? ((this.pos += 1), true) : undefined
+    return this.s[this.pos] === space ? ((this.pos += 1), true) : undefined
   }
 
   // returns true if string ended
@@ -101,15 +129,28 @@ export class Parser {
   }
 
   // returns unparsed part of the string
-  rest(): string {
-    return this.s.slice(this.pos)
+  rest(): Uint8Array {
+    return this.s.subarray(this.pos)
   }
 }
 
-export function isDigit(c: string): boolean {
-  return c >= "0" && c <= "9"
+function cc(c: string): number {
+  return c.charCodeAt(0)
 }
 
-export function isAlphaNum(c: string): boolean {
-  return (c >= "0" && c <= "9") || (c >= "a" && c <= "z") || (c >= "A" && c <= "Z")
+const char_0 = cc("0")
+const char_9 = cc("9")
+const char_a = cc("a")
+const char_z = cc("z")
+const char_A = cc("A")
+const char_Z = cc("Z")
+const char_plus = cc("+")
+const char_slash = cc("/")
+
+export function isDigit(c: number): boolean {
+  return c >= char_0 && c <= char_9
+}
+
+export function isAlphaNum(c: number): boolean {
+  return (c >= char_0 && c <= char_9) || (c >= char_a && c <= char_z) || (c >= char_A && c <= char_Z)
 }
