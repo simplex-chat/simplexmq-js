@@ -45,20 +45,20 @@ export class ABQueue<T> {
   }
 
   private async _enqueue(x: QueueItem<T>): Promise<void> {
-    if (this.enqClosed) throw new ABQueueError("queue closed")
+    if (this.enqClosed) throw new ABQueueError("enqueue: queue closed")
     await this.deq.wait()
     this.queue.push(x)
     this.enq.signal()
   }
 
   async dequeue(): Promise<T> {
-    if (this.deqClosed) throw new ABQueueError("queue closed")
+    if (this.deqClosed) throw new ABQueueError("dequeue: queue closed")
     this.deq.signal()
     await this.enq.wait()
     const x = this.queue.shift() as QueueItem<T>
     if (x === queueClosed) {
       this.deqClosed = true
-      throw new ABQueueError("queue closed")
+      throw new ABQueueError("dequeue: queue closed")
     }
     return x
   }

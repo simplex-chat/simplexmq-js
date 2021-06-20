@@ -1,9 +1,9 @@
 /* eslint-disable no-console */
 import {ABQueue, NextIter} from "./queue"
-import {AESKey, PublicKey, KeyType} from "./crypto"
+import {AESKey, PublicKey, PrivateKey, KeyType, PrivateType} from "./crypto"
 import * as C from "./crypto"
-import {concat, concatN, encodeInt32, encodeInt16, decodeAscii, space, unwordsN, encodeBase64, empty} from "./buffer"
-import {SMPCommand, Party, SMPError, smpCommandP, smpError} from "./protocol"
+import * as B from "./buffer"
+import {SMPCommand, Party, Client, SMPError, CMDErrorType, smpCommandP, smpCmdError, serializeSMPCommand} from "./protocol"
 import {Parser} from "./parser"
 
 export class TransportError extends Error {}
@@ -49,8 +49,12 @@ export class WSTransport extends Transport<WSData, WSData> {
   }
 
   async close(): Promise<void> {
+    // (async () => {
+    //   for await (const x of this.queue) if (x instanceof Promise) await x
+    // // eslint-disable-next-line @typescript-eslint/no-empty-function
+    // })().then(() => {}, () => {})
     this.sock.close()
-    for await (const x of this.queue) if (x instanceof Promise) await x
+    return Promise.resolve()
   }
 
   write(data: WSData): Promise<void> {
@@ -82,7 +86,7 @@ function withTimeout<T>(ms: number, action: () => Promise<T>): Promise<T> {
 export interface SMPServer {
   readonly host: string
   readonly port?: string
-  readonly keyHash: Uint8Array
+  readonly keyHash?: Uint8Array
 }
 
 interface SignedRawTransmission {
@@ -90,22 +94,28 @@ interface SignedRawTransmission {
   readonly transmission: Uint8Array
 }
 
-interface TransmissionOrError {
+interface Transmission<P extends Party> {
+  readonly corrId: Uint8Array
+  readonly queueId: Uint8Array
+  readonly command: SMPCommand<P>
+}
+
+interface TransmissionOrError<P extends Party> {
   readonly signature: Uint8Array
   readonly corrId: Uint8Array
   readonly queueId: Uint8Array
-  readonly command?: SMPCommand<Party.Broker>
+  readonly command?: SMPCommand<P>
   readonly error?: SMPError
 }
 
-const badBlock: TransmissionOrError = {
-  signature: empty,
-  corrId: empty,
-  queueId: empty,
+const badBlock: TransmissionOrError<Party.Broker> = {
+  signature: B.empty,
+  corrId: B.empty,
+  queueId: B.empty,
   error: {eType: "BLOCK"},
 }
 
-export class SMPTransport extends Transport<SignedRawTransmission, TransmissionOrError> {
+export class SMPTransport extends Transport<SignedRawTransmission, TransmissionOrError<Party.Broker>> {
   private constructor(private readonly th: THandle, readonly timeout: number, qSize: number) {
     super(qSize)
   }
@@ -114,18 +124,25 @@ export class SMPTransport extends Transport<SignedRawTransmission, TransmissionO
     const conn = await WSTransport.connect(`ws://${srv.host}:${srv.port || "80"}`, timeout, qSize)
     const th = await clientHandshake(conn, srv.keyHash)
     const t = new SMPTransport(th, timeout, qSize)
-    const close: () => Promise<void> = () => t.close()
+    const close = (): Promise<void> => t.close()
     processWSQueue(t, th).then(close, close)
     return t
   }
 
-  close(): Promise<void> {
-    return this.th.conn.close()
+  async close(): Promise<void> {
+    await this.th.conn.close()
+    // for await (const x of this.queue) if (x instanceof Promise) await x
   }
 
   async write({signature, transmission}: SignedRawTransmission): Promise<void> {
-    const data = unwordsN(encodeBase64(signature), transmission, empty)
+    const data = B.unwordsN(B.encodeBase64(signature), transmission, B.empty)
     return tPutEncrypted(this.th, data)
+  }
+
+  async tWrite(key: PrivateKey<PrivateType.Sign>, t: Transmission<Client>): Promise<void> {
+    const transmission = serializeTransmission(t)
+    const signature = new Uint8Array(await C.sign(key, transmission))
+    return this.write({signature, transmission})
   }
 }
 
@@ -139,22 +156,43 @@ async function processWSQueue(t: SMPTransport, th: THandle): Promise<void> {
     const s = new Uint8Array(await decryptBlock(th.rcvKey, block))
     await t.queue.enqueue(parseSMPTransmission(s))
   }
+  return t.queue.close()
 }
 
-function parseSMPTransmission(s: Uint8Array): TransmissionOrError {
+function parseSMPTransmission(s: Uint8Array): TransmissionOrError<Party.Broker> {
   const p = new Parser(s)
-  let signature: Uint8Array | undefined
+  const signature: Uint8Array = B.empty
   let corrId: Uint8Array | undefined
   let queueId: Uint8Array | undefined
   let command: SMPCommand | undefined
-  return (signature = p.base64()) && p.space() && ((corrId = p.word()), p.space()) && (queueId = p.base64()) && p.space()
+  let qErr: CMDErrorType | undefined
+  return p.space() && ((corrId = p.word()), p.space()) && ((queueId = p.try(() => p.base64()) || B.empty), p.space())
     ? // eslint-disable-next-line no-cond-assign
       (command = smpCommandP(p))
       ? command.party === Party.Broker
-        ? {signature, corrId, queueId, command}
-        : {signature, corrId, queueId, error: smpError("CMD", "PROHIBITED")}
-      : {signature, corrId, queueId, error: smpError("CMD", "SYNTAX")}
+        ? // eslint-disable-next-line no-cond-assign
+          (qErr = tQueueError(queueId, command))
+          ? {signature, corrId, queueId, error: smpCmdError(qErr)}
+          : {signature, corrId, queueId, command}
+        : {signature, corrId, queueId, error: smpCmdError("PROHIBITED")}
+      : {signature, corrId, queueId, error: smpCmdError("SYNTAX")}
     : badBlock
+}
+
+function tQueueError(queueId: Uint8Array, {cmd}: SMPCommand<Party.Broker>): CMDErrorType | undefined {
+  switch (cmd) {
+    case "IDS":
+    case "PONG":
+      return queueId.length > 0 ? "HAS_AUTH" : undefined
+    case "ERR":
+      return
+    default:
+      return queueId.length === 0 ? "NO_QUEUE" : undefined
+  }
+}
+
+function serializeTransmission({corrId, queueId, command}: Transmission<Client>): Uint8Array {
+  return B.unwordsN(corrId, B.encodeBase64(queueId), serializeSMPCommand(command))
 }
 
 function delay(ms?: number): Promise<void> {
@@ -164,7 +202,7 @@ function delay(ms?: number): Promise<void> {
 export async function tPutEncrypted({conn, sndKey, blockSize}: THandle, data: ArrayBuffer): Promise<void> {
   const iv = nextIV(sndKey)
   const {encrypted, authTag} = await C.encryptAESData(sndKey.aesKey, iv, blockSize - C.authTagSize, data)
-  return conn.write(concat(authTag, encrypted))
+  return conn.write(B.concat(authTag, encrypted))
 }
 
 // TODO change server in v0.4 to match (auth tag should be appended to the end)
@@ -193,11 +231,11 @@ export async function tGetEncrypted1({conn, rcvKey, blockSize}: THandle): Promis
 }
 
 function nextIV(k: SessionKey): ArrayBuffer {
-  const c = encodeInt32(k.counter++)
+  const c = B.encodeInt32(k.counter++)
   const start = k.baseIV.slice(0, 4)
   const rest = k.baseIV.slice(4)
   start.forEach((b, i) => (start[i] = b ^ c[i]))
-  return concat(start, rest)
+  return B.concat(start, rest)
 }
 
 export interface THandle {
@@ -214,7 +252,7 @@ interface SessionKey {
 }
 
 async function serializeSessionKey(k: SessionKey): Promise<Uint8Array> {
-  return concat(new Uint8Array(await C.encodeAESKey(k.aesKey)), k.baseIV)
+  return B.concat(new Uint8Array(await C.encodeAESKey(k.aesKey)), k.baseIV)
 }
 
 interface ServerHeader {
@@ -246,9 +284,9 @@ interface ClientHandshake {
 }
 
 async function serializeClientHandshake(h: ClientHandshake): Promise<Uint8Array> {
-  return concatN(
-    encodeInt32(h.blockSize),
-    encodeInt16(binaryRsaTransport),
+  return B.concatN(
+    B.encodeInt32(h.blockSize),
+    B.encodeInt16(binaryRsaTransport),
     await serializeSessionKey(h.sndKey),
     await serializeSessionKey(h.rcvKey)
   )
@@ -260,8 +298,8 @@ function parseSMPVersion(block: ArrayBuffer): SMPVersion {
   // TODO better parsing
   const a = new Uint8Array(block)
   let i = 0
-  while (i < 50 && i < a.length && a[i] !== space) i++
-  const version = decodeAscii(a.subarray(0, i))
+  while (i < 50 && i < a.length && a[i] !== B.space) i++
+  const version = B.decodeAscii(a.subarray(0, i))
     .split(".")
     .map((n) => +n)
   if (version.length === 4 && version.every((n) => !Number.isNaN(n))) return version as unknown as SMPVersion

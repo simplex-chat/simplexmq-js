@@ -5,7 +5,7 @@ export enum KeyType {
   Verify = "verify",
 }
 
-enum PrivateType {
+export enum PrivateType {
   Decrypt = "decrypt",
   Sign = "sign",
 }
@@ -32,7 +32,7 @@ export type PublicKey<T extends KeyType = KeyType> = CryptoKey & {
   algorithm: RsaKeyAlgorithm
 }
 
-type PrivateKey<T extends PrivateType = PrivateType> = CryptoKey & {
+export type PrivateKey<T extends PrivateType = PrivateType> = CryptoKey & {
   type: "private"
   usages: [T]
   algorithm: RsaKeyAlgorithm
@@ -125,16 +125,12 @@ export function decryptOAEP(key: PrivateKey<PrivateType.Decrypt>, data: ArrayBuf
   return crypto.subtle.decrypt({name: "RSA-OAEP"}, key, data)
 }
 
-export interface Signature {
-  signature: ArrayBuffer
+export async function sign(key: PrivateKey<PrivateType.Sign>, data: ArrayBuffer): Promise<ArrayBuffer> {
+  return crypto.subtle.sign({name: "RSA-PSS", saltLength: 32}, key, data)
 }
 
-export async function sign(key: PrivateKey<PrivateType.Sign>, data: ArrayBuffer): Promise<Signature> {
-  return {signature: await crypto.subtle.sign({name: "RSA-PSS", saltLength: 32}, key, data)}
-}
-
-export function verify(key: PublicKey<KeyType.Verify>, sig: Signature, data: ArrayBuffer): Promise<boolean> {
-  return crypto.subtle.verify({name: "RSA-PSS", saltLength: 32}, key, sig.signature, data)
+export function verify(key: PublicKey<KeyType.Verify>, sig: ArrayBuffer, data: ArrayBuffer): Promise<boolean> {
+  return crypto.subtle.verify({name: "RSA-PSS", saltLength: 32}, key, sig, data)
 }
 
 export type AESKey = CryptoKey & {type: "secret"; algorithm: AesKeyGenParams}

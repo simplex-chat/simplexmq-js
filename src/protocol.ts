@@ -65,6 +65,10 @@ export function smpError<E extends ErrorType>(eType: E, eSubType: ErrorSubType<E
   return (eType === "CMD" ? {eType, eSubType} : {eType}) as SMPError<E>
 }
 
+export function smpCmdError(eSubType: CMDErrorType): SMPError<"CMD"> {
+  return {eType: "CMD", eSubType}
+}
+
 const smpErrors = ["BLOCK", "CMD", "AUTH", "NO_MSG", "INTERNAL"] as const
 
 const errBytes: BinaryTags<typeof smpErrors[number]> = binaryTags(smpErrors)
@@ -75,7 +79,7 @@ const smpCmdErrors = ["PROHIBITED", "KEY_SIZE", "SYNTAX", "NO_AUTH", "HAS_AUTH",
 
 const cmdErrBytes: BinaryTags<typeof smpCmdErrors[number]> = binaryTags(smpCmdErrors)
 
-type CMDErrorType = typeof smpCmdErrors[number]
+export type CMDErrorType = typeof smpCmdErrors[number]
 
 export type SMPCommand<P extends Party = Party, C extends CmdTag<P> = CmdTag<P>> = Command<P, C> &
   (NEW | SUB | KEY | ACK | OFF | DEL | SEND | PING | IDS | MSG | END | OK | ERR | PONG)

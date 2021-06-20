@@ -24,7 +24,7 @@ export interface ServerMessage {
   msg: SMP.MSG | SMP.END
 }
 
-interface Request {
+export interface Request {
   qId: Uint8Array
   resolve: (resp: SMPCommand<Party.Broker>) => void
   reject: (err: SMPClientError) => void
@@ -36,14 +36,14 @@ export class SMPClient {
   readonly blockSize: number
   private _connected = true
   // private clientCorrId = 0
-  private readonly sentCommands = new Map<string, Request>()
+  // private readonly sentCommands = new Map<string, Request>()
 
   private constructor(
     readonly smpServer: SMPServer,
     readonly config: SMPClientConfig,
     readonly msgQ: ABQueue<ServerMessage>,
     readonly client: Promise<void>,
-    private readonly th: THandle
+    readonly th: THandle
   ) {
     this.blockSize = th.blockSize
   }
