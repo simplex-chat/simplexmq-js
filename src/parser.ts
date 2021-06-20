@@ -1,4 +1,4 @@
-import {space, char_equal, decodeAscii, decodeBase64} from "./buffer"
+import {space, char_equal, decodeAscii, decodeBase64, empty} from "./buffer"
 
 export type ParserFunc<T> = (p?: Parser) => T | undefined
 
@@ -28,7 +28,7 @@ export class Parser {
 
   // takes chars while condition is true, e.g. function isAlphaNum or isDigit can be used
   takeWhile(f: (c: number) => boolean): Uint8Array {
-    return this.takeWhile1(f) || new Uint8Array(0)
+    return this.takeWhile1(f) || empty
   }
 
   // takes chars (> 0) while condition is true, e.g. function isAlphaNum or isDigit can be used
@@ -39,7 +39,7 @@ export class Parser {
   }
 
   // takes base-64 encoded string and returns decoded binary
-  takeBase64(): Uint8Array | undefined {
+  base64(): Uint8Array | undefined {
     const {pos} = this
     let c: number
     while (((c = this.s[this.pos]), isAlphaNum(c) || c === char_plus || c === char_slash)) this.pos++

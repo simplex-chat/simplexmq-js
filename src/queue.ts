@@ -16,7 +16,7 @@ class Sem {
   }
 }
 
-type NextIter<T> = {value: T | PromiseLike<T>; done?: false} | {value?: undefined; done: true}
+export type NextIter<T> = {value: T | Promise<T>; done?: false} | {value?: undefined; done: true}
 
 const queueClosed = Symbol()
 
