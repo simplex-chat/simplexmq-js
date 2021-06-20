@@ -29,7 +29,7 @@ describe("WS: WebSocket client transport", () => {
   })
 })
 
-describe("SMP transport (expects SMP server on localhost:80)", () => {
+describe.skip("SMP transport (expects SMP server on localhost:80)", () => {
   const keyHash: Uint8Array | undefined = decodeBase64(encodeAscii("bU0K+bRg24xWW//lS0umO1Zdw/SXqpJNtm1/RrPLViE="))
 
   test("transport handshake should agree session keys via WSTransport", async (done) => {

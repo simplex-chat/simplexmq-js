@@ -91,14 +91,15 @@ interface Transmission<P extends Party> {
   readonly command?: SMPCommand<P>
 }
 
-interface ClientTransmission extends Transmission<Client> {
-  readonly key: PrivateKey<PrivateType.Sign>
-  readonly command: SMPCommand<Client>
+export interface ClientTransmission extends Required<Transmission<Client>> {
+  readonly key?: PrivateKey<PrivateType.Sign>
 }
 
-interface BrokerTransmission extends Transmission<Party.Broker> {
-  readonly error?: SMPError
-}
+export type BrokerTransmission =
+  | Required<Transmission<Party.Broker>>
+  | (Transmission<Party.Broker> & {
+      readonly error: SMPError
+    })
 
 const badBlock: BrokerTransmission = {
   corrId: B.empty,
@@ -107,8 +108,11 @@ const badBlock: BrokerTransmission = {
 }
 
 export class SMPTransport extends Transport<ClientTransmission, BrokerTransmission> {
+  readonly blockSize: number
+
   private constructor(private readonly th: THandle, readonly timeout: number, qSize: number) {
     super(qSize)
+    this.blockSize = th.blockSize
   }
 
   static async connect(srv: SMPServer, timeout: number, qSize: number): Promise<SMPTransport> {
@@ -125,13 +129,13 @@ export class SMPTransport extends Transport<ClientTransmission, BrokerTransmissi
 
   async write(t: ClientTransmission): Promise<void> {
     const trn = serializeTransmission(t)
-    const sig = new Uint8Array(await C.sign(t.key, trn))
-    const data = B.unwordsN(B.encodeBase64(sig), trn, B.empty)
+    const sig = t.key ? new Uint8Array(await C.sign(t.key, trn)) : undefined
+    const data = B.unwordsN(sig ? B.encodeBase64(sig) : B.empty, trn, B.empty)
     return tPutEncrypted(this.th, data)
   }
 }
 
-function noop(): void {}
+export function noop(): void {}
 
 async function processWSQueue(t: SMPTransport, th: THandle): Promise<void> {
   for await (const data of th.conn) {
