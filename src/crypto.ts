@@ -45,7 +45,7 @@ interface KeyPair<T extends KeyType> {
 
 export class CryptoError extends Error {}
 
-export async function generateKeyPair<T extends KeyType>(size: number, keyType: T): Promise<KeyPair<T>> {
+export function generateKeyPair<T extends KeyType>(size: number, keyType: T): Promise<KeyPair<T>> {
   const info = keyInfo[keyType]
   return crypto.subtle.generateKey(
     {name: info.algorithm, modulusLength: size, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256"},
@@ -135,7 +135,7 @@ export function verify(key: PublicKey<KeyType.Verify>, sig: ArrayBuffer, data: A
 
 export type AESKey = CryptoKey & {type: "secret"; algorithm: AesKeyGenParams}
 
-export async function randomAESKey(length = 256): Promise<AESKey> {
+export function randomAESKey(length = 256): Promise<AESKey> {
   return crypto.subtle.generateKey({name: "AES-GCM", length}, true, ["encrypt", "decrypt"]) as Promise<AESKey>
 }
 

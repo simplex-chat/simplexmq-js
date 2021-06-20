@@ -2,11 +2,12 @@ import * as assert from "assert"
 import {ABQueue, ABQueueError} from "../src/queue"
 
 describe("ABQueue", () => {
-  test("async queue API", async () => {
+  test("async queue API", async (done) => {
     const arr = makeArr(100)
     await testQueue(10)
     await testQueue(1)
     await testQueue(0)
+    done()
 
     async function testQueue(maxSize: number): Promise<void> {
       const q = new ABQueue<number>(maxSize)
@@ -15,11 +16,12 @@ describe("ABQueue", () => {
     }
   })
 
-  test("async queue iterator API", async () => {
+  test("async queue iterator API", async (done) => {
     const arr = makeArr(100)
     await testQueueIterator(10)
     await testQueueIterator(1)
     await testQueueIterator(0)
+    done()
 
     async function testQueueIterator(maxSize: number): Promise<void> {
       const q = new ABQueue<number>(maxSize)
@@ -28,7 +30,7 @@ describe("ABQueue", () => {
     }
   })
 
-  test("enqueue / dequeue with closed queue throws exception", async () => {
+  test("enqueue / dequeue with closed queue throws exception", async (done) => {
     const q = new ABQueue<number>(10)
     await q.enqueue(1)
     await q.enqueue(2)
@@ -40,6 +42,7 @@ describe("ABQueue", () => {
     await assert.rejects(q.enqueue(3))
     await assert.rejects(q.dequeue())
     assert.deepStrictEqual(await q.next(), {done: true})
+    done()
   })
 })
 

@@ -18,16 +18,17 @@ import {
 import * as assert from "assert"
 
 describe("AES-GCM encryption with padding", () => {
-  test("encrypt and decrypt with appended auth tag", async () => {
+  test("encrypt and decrypt with appended auth tag", async (done) => {
     const key = await randomAESKey()
     const iv = randomIV()
     const data = new TextEncoder().encode("hello")
     const res = await encryptAES(key, iv, 32, data)
     assert.strictEqual(res.byteLength, 32 + 16)
     testDecryption(await decryptAES(key, iv, res))
+    done()
   })
 
-  test("encrypt and decrypt", async () => {
+  test("encrypt and decrypt", async (done) => {
     const key = await randomAESKey()
     const iv = randomIV()
     const data = new TextEncoder().encode("hello")
@@ -35,6 +36,7 @@ describe("AES-GCM encryption with padding", () => {
     assert.strictEqual(res.encrypted.byteLength, 32)
     assert.strictEqual(res.authTag.byteLength, 16)
     testDecryption(await decryptAESData(key, iv, res))
+    done()
   })
 
   function testDecryption(decrypted: ArrayBuffer): void {
@@ -44,7 +46,7 @@ describe("AES-GCM encryption with padding", () => {
 })
 
 describe("RSA-OAEP encryption", () => {
-  test("encrypt and decrypt", async () => {
+  test("encrypt and decrypt", async (done) => {
     const {publicKey, privateKey} = await generateKeyPair(2048, KeyType.Encrypt)
     const data = new TextEncoder().encode("hello there")
     const encrypted = await encryptOAEP(publicKey, data)
@@ -52,21 +54,23 @@ describe("RSA-OAEP encryption", () => {
 
     const decrypted = await decryptOAEP(privateKey, encrypted)
     assert.strictEqual(new TextDecoder().decode(decrypted), "hello there")
+    done()
   })
 })
 
 describe("RSA-PSS signature verification", () => {
-  test("sign and verify", async () => {
+  test("sign and verify", async (done) => {
     const {publicKey, privateKey} = await generateKeyPair(2048, KeyType.Verify)
     const data = new TextEncoder().encode("hello there")
     const sig = await sign(privateKey, data)
     const ok = await verify(publicKey, sig, data)
     assert.strictEqual(ok, true)
+    done()
   })
 })
 
 describe("SMP agent E2E encryption", () => {
-  test("encrypt and decrypt", async () => {
+  test("encrypt and decrypt", async (done) => {
     const {publicKey, privateKey} = await generateKeyPair(2048, KeyType.Encrypt)
     const data = new TextEncoder().encode("hello there again")
     const encrypted = await encryptE2E(publicKey, 1024, data)
@@ -74,5 +78,6 @@ describe("SMP agent E2E encryption", () => {
 
     const decrypted = await decryptE2E(privateKey, encrypted)
     assert.strictEqual(new TextDecoder().decode(decrypted), "hello there again")
+    done()
   })
 })

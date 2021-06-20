@@ -48,11 +48,7 @@ export class WSTransport extends Transport<WSData, WSData> {
     return withTimeout(timeout, () => new Promise((r) => (sock.onopen = () => r(t))))
   }
 
-  async close(): Promise<void> {
-    // (async () => {
-    //   for await (const x of this.queue) if (x instanceof Promise) await x
-    // // eslint-disable-next-line @typescript-eslint/no-empty-function
-    // })().then(() => {}, () => {})
+  close(): Promise<void> {
     this.sock.close()
     return Promise.resolve()
   }
@@ -89,33 +85,28 @@ export interface SMPServer {
   readonly keyHash?: Uint8Array
 }
 
-interface SignedRawTransmission {
-  readonly signature: Uint8Array
-  readonly transmission: Uint8Array
-}
-
 interface Transmission<P extends Party> {
   readonly corrId: Uint8Array
   readonly queueId: Uint8Array
-  readonly command: SMPCommand<P>
+  readonly command?: SMPCommand<P>
 }
 
-interface TransmissionOrError<P extends Party> {
-  readonly signature: Uint8Array
-  readonly corrId: Uint8Array
-  readonly queueId: Uint8Array
-  readonly command?: SMPCommand<P>
+interface ClientTransmission extends Transmission<Client> {
+  readonly key: PrivateKey<PrivateType.Sign>
+  readonly command: SMPCommand<Client>
+}
+
+interface BrokerTransmission extends Transmission<Party.Broker> {
   readonly error?: SMPError
 }
 
-const badBlock: TransmissionOrError<Party.Broker> = {
-  signature: B.empty,
+const badBlock: BrokerTransmission = {
   corrId: B.empty,
   queueId: B.empty,
   error: {eType: "BLOCK"},
 }
 
-export class SMPTransport extends Transport<SignedRawTransmission, TransmissionOrError<Party.Broker>> {
+export class SMPTransport extends Transport<ClientTransmission, BrokerTransmission> {
   private constructor(private readonly th: THandle, readonly timeout: number, qSize: number) {
     super(qSize)
   }
@@ -124,27 +115,23 @@ export class SMPTransport extends Transport<SignedRawTransmission, TransmissionO
     const conn = await WSTransport.connect(`ws://${srv.host}:${srv.port || "80"}`, timeout, qSize)
     const th = await clientHandshake(conn, srv.keyHash)
     const t = new SMPTransport(th, timeout, qSize)
-    const close = (): Promise<void> => t.close()
-    processWSQueue(t, th).then(close, close)
+    processWSQueue(t, th).then(noop, noop)
     return t
   }
 
   async close(): Promise<void> {
     await this.th.conn.close()
-    // for await (const x of this.queue) if (x instanceof Promise) await x
   }
 
-  async write({signature, transmission}: SignedRawTransmission): Promise<void> {
-    const data = B.unwordsN(B.encodeBase64(signature), transmission, B.empty)
+  async write(t: ClientTransmission): Promise<void> {
+    const trn = serializeTransmission(t)
+    const sig = new Uint8Array(await C.sign(t.key, trn))
+    const data = B.unwordsN(B.encodeBase64(sig), trn, B.empty)
     return tPutEncrypted(this.th, data)
   }
-
-  async tWrite(key: PrivateKey<PrivateType.Sign>, t: Transmission<Client>): Promise<void> {
-    const transmission = serializeTransmission(t)
-    const signature = new Uint8Array(await C.sign(key, transmission))
-    return this.write({signature, transmission})
-  }
 }
+
+function noop(): void {}
 
 async function processWSQueue(t: SMPTransport, th: THandle): Promise<void> {
   for await (const data of th.conn) {
@@ -156,12 +143,11 @@ async function processWSQueue(t: SMPTransport, th: THandle): Promise<void> {
     const s = new Uint8Array(await decryptBlock(th.rcvKey, block))
     await t.queue.enqueue(parseSMPTransmission(s))
   }
-  return t.queue.close()
+  await t.queue.close()
 }
 
-function parseSMPTransmission(s: Uint8Array): TransmissionOrError<Party.Broker> {
+function parseSMPTransmission(s: Uint8Array): BrokerTransmission {
   const p = new Parser(s)
-  const signature: Uint8Array = B.empty
   let corrId: Uint8Array | undefined
   let queueId: Uint8Array | undefined
   let command: SMPCommand | undefined
@@ -172,10 +158,10 @@ function parseSMPTransmission(s: Uint8Array): TransmissionOrError<Party.Broker> 
       ? command.party === Party.Broker
         ? // eslint-disable-next-line no-cond-assign
           (qErr = tQueueError(queueId, command))
-          ? {signature, corrId, queueId, error: smpCmdError(qErr)}
-          : {signature, corrId, queueId, command}
-        : {signature, corrId, queueId, error: smpCmdError("PROHIBITED")}
-      : {signature, corrId, queueId, error: smpCmdError("SYNTAX")}
+          ? {corrId, queueId, error: smpCmdError(qErr)}
+          : {corrId, queueId, command}
+        : {corrId, queueId, error: smpCmdError("PROHIBITED")}
+      : {corrId, queueId, error: smpCmdError("SYNTAX")}
     : badBlock
 }
 
@@ -191,7 +177,7 @@ function tQueueError(queueId: Uint8Array, {cmd}: SMPCommand<Party.Broker>): CMDE
   }
 }
 
-function serializeTransmission({corrId, queueId, command}: Transmission<Client>): Uint8Array {
+function serializeTransmission({corrId, queueId, command}: ClientTransmission): Uint8Array {
   return B.unwordsN(corrId, B.encodeBase64(queueId), serializeSMPCommand(command))
 }
 
