@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import {ABQueue, NextIter} from "./queue"
 import {AESKey, PublicKey, PrivateKey, KeyType, PrivateType} from "./crypto"
 import * as C from "./crypto"

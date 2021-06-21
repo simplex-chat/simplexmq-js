@@ -2,8 +2,9 @@ import * as SMP from "./protocol"
 import {SMPCommand, SMPError, Party, Client} from "./protocol"
 import {ABQueue} from "./queue"
 import {SMPTransport, SMPServer, ClientTransmission, noop} from "./transport"
-import {PrivateKey, PrivateType} from "./crypto"
+import {SignKey, PublicKey, KeyType} from "./crypto"
 import * as B from "./buffer"
+import * as C from "./crypto"
 
 export interface SMPClientConfig {
   readonly qSize: number
@@ -41,7 +42,7 @@ export class SMPClient {
   private readonly sentCommands = new Map<string, Request>()
 
   private constructor(
-    readonly smpServer: SMPServer,
+    readonly server: SMPServer,
     readonly config: SMPClientConfig,
     readonly msgQ: ABQueue<ServerMessage>,
     readonly client: Promise<void>,
@@ -82,20 +83,66 @@ export class SMPClient {
     }
   }
 
-  async sendSMPCommand(
-    key: PrivateKey<PrivateType.Sign> | undefined,
-    queueId: Uint8Array,
-    command: SMPCommand<Client>
-  ): Promise<BrokerResponse> {
+  sendSMPCommand(key: SignKey | undefined, queueId: Uint8Array, command: SMPCommand<Client>): Promise<BrokerResponse> {
     const corrId = `${this.clientCorrId++}`
     const t: ClientTransmission = {key, corrId: B.encodeAscii(corrId), queueId, command}
-    const p = new Promise<BrokerResponse>((resolve, reject) => this.sentCommands.set(corrId, {queueId, resolve, reject}))
-    await this.transport.write(t)
-    return p
+    this.transport.write(t).then(noop, noop)
+    return new Promise((resolve, reject) => this.sentCommands.set(corrId, {queueId, resolve, reject}))
   }
 
   async disconnect(): Promise<void> {
-    return this.transport.close()
+    await this.transport.close()
+    await this.client
+  }
+
+  async createSMPQueue(rcvKey: SignKey, rcvPubKey: PublicKey<KeyType.Verify>): Promise<SMP.IDS> {
+    const pubKeyStr = new Uint8Array(await C.encodePubKey(rcvPubKey))
+    const resp = await this.sendSMPCommand(rcvKey, B.empty, SMP.cNEW(pubKeyStr))
+    if (resp.cmd === "IDS") return resp
+    throw new Error("unexpected response")
+  }
+
+  subscribeSMPQueue(rcvKey: SignKey, queueId: Uint8Array): Promise<void> {
+    return this.msgSMPCommand(rcvKey, queueId, SMP.cSUB())
+  }
+
+  async secureSMPQueue(rcvKey: SignKey, queueId: Uint8Array, sndPubKey: PublicKey<KeyType.Verify>): Promise<void> {
+    const pubKeyStr = new Uint8Array(await C.encodePubKey(sndPubKey))
+    return this.okSMPCommand(rcvKey, queueId, SMP.cKEY(pubKeyStr))
+  }
+
+  async sendSMPMessage(sndKey: SignKey | undefined, queueId: Uint8Array, msg: Uint8Array): Promise<void> {
+    const resp = await this.sendSMPCommand(sndKey, queueId, SMP.cSEND(msg))
+    if (resp.cmd !== "OK") throw new Error("unexpected response")
+  }
+
+  ackSMPMessage(rcvKey: SignKey, queueId: Uint8Array): Promise<void> {
+    return this.msgSMPCommand(rcvKey, queueId, SMP.cACK())
+  }
+
+  suspendSMPQueue(rcvKey: SignKey, queueId: Uint8Array): Promise<void> {
+    return this.okSMPCommand(rcvKey, queueId, SMP.cOFF())
+  }
+
+  deleteSMPQueue(rcvKey: SignKey, queueId: Uint8Array): Promise<void> {
+    return this.okSMPCommand(rcvKey, queueId, SMP.cDEL())
+  }
+
+  private async msgSMPCommand(rcvKey: SignKey, queueId: Uint8Array, command: SMPCommand<Client>): Promise<void> {
+    const resp = await this.sendSMPCommand(rcvKey, queueId, command)
+    switch (resp.cmd) {
+      case "OK":
+        return
+      case "MSG":
+        return this.msgQ.enqueue({server: this.server, queueId, command: resp})
+      default:
+        throw new Error("unexpected response")
+    }
+  }
+
+  private async okSMPCommand(key: SignKey, queueId: Uint8Array, command: SMPCommand<Client>): Promise<void> {
+    const resp = await this.sendSMPCommand(key, queueId, command)
+    if (resp.cmd !== "OK") throw new Error("unexpected response")
   }
 
   get connected(): boolean {

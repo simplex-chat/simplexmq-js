@@ -1,4 +1,4 @@
-import {space, char_equal, decodeAscii, decodeBase64, empty} from "./buffer"
+import * as B from "./buffer"
 
 export type ParserFunc<T> = (p?: Parser) => T | undefined
 
@@ -28,7 +28,7 @@ export class Parser {
 
   // takes chars while condition is true, e.g. function isAlphaNum or isDigit can be used
   takeWhile(f: (c: number) => boolean): Uint8Array {
-    return this.takeWhile1(f) || empty
+    return this.takeWhile1(f) || B.empty
   }
 
   // takes chars (> 0) while condition is true, e.g. function isAlphaNum or isDigit can be used
@@ -43,8 +43,8 @@ export class Parser {
     const {pos} = this
     let c: number
     while (((c = this.s[this.pos]), isAlphaNum(c) || c === char_plus || c === char_slash)) this.pos++
-    if (this.char(char_equal)) this.char(char_equal)
-    return this.pos > pos ? decodeBase64(this.s.subarray(pos, this.pos)) : undefined
+    if (this.char(B.char_equal)) this.char(B.char_equal)
+    return this.pos > pos ? B.decodeBase64(this.s.subarray(pos, this.pos)) : undefined
   }
 
   many<T>(parser: ParserFunc<T>): T[] {
@@ -61,7 +61,9 @@ export class Parser {
 
   // takes the word (possibly empty) until the first space or until the end of the string
   word(range?: number): Uint8Array {
-    const pos = range ? this.s.subarray(this.pos, this.pos + range).indexOf(space) + this.pos : this.s.indexOf(space, this.pos)
+    const pos = range
+      ? this.s.subarray(this.pos, this.pos + range).indexOf(B.space) + this.pos
+      : this.s.indexOf(B.space, this.pos)
     let res: Uint8Array
     ;[res, this.pos] = pos >= this.pos ? [this.s.subarray(this.pos, pos), pos] : [this.s.subarray(this.pos), this.s.length]
     return res
@@ -103,8 +105,7 @@ export class Parser {
     const s = this.takeWhile1(isDigit)
     if (s === undefined) return
     let n = 0
-    let i = s.length
-    while (i--) {
+    for (let i = 0; i < s.length; i++) {
       n *= 10
       n += s[i] - char_0
     }
@@ -114,13 +115,13 @@ export class Parser {
   // takes ISO8601 date and returns as Date object
   date(): Date | undefined {
     const s = this.word()
-    const d = s.length && new Date(decodeAscii(s))
+    const d = s.length && new Date(B.decodeAscii(s))
     return d && !isNaN(d.valueOf()) ? d : undefined
   }
 
   // takes the space
   space(): true | undefined {
-    return this.s[this.pos] === space ? ((this.pos += 1), true) : undefined
+    return this.s[this.pos] === B.space ? ((this.pos += 1), true) : undefined
   }
 
   // returns true if string ended

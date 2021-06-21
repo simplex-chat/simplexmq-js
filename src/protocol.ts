@@ -1,5 +1,5 @@
-import {concat, unwords, unwordsN, encodeAscii, encodeBase64, empty} from "./buffer"
 import {BinaryTags, Parser} from "./parser"
+import * as B from "./buffer"
 
 export enum Party {
   Recipient = "R",
@@ -116,37 +116,37 @@ export const cmdTagBytes: BinaryTags<CmdTag> = binaryTags(cmdTags)
 
 function binaryTags<T extends string>(tags: readonly T[]): BinaryTags<T> {
   const res: Partial<BinaryTags<T>> = {}
-  tags.forEach((tag) => (res[tag] = encodeAscii(tag)))
+  tags.forEach((tag) => (res[tag] = B.encodeAscii(tag)))
   return res as BinaryTags<T>
 }
 
 export function serializeSMPCommand(c: SMPCommand): Uint8Array {
   return c.cmd === "NEW"
-    ? unwords(cmdTagBytes.NEW, serializePubKey(c.rcvPubKey))
+    ? B.unwords(cmdTagBytes.NEW, serializePubKey(c.rcvPubKey))
     : c.cmd === "KEY"
-    ? unwords(cmdTagBytes.KEY, serializePubKey(c.sndPubKey))
+    ? B.unwords(cmdTagBytes.KEY, serializePubKey(c.sndPubKey))
     : c.cmd === "SEND"
-    ? unwordsN(cmdTagBytes.SEND, ...serializeMsg(c.msgBody))
+    ? B.unwordsN(cmdTagBytes.SEND, ...serializeMsg(c.msgBody))
     : c.cmd === "IDS"
-    ? unwordsN(cmdTagBytes.IDS, encodeBase64(c.rcvId), encodeBase64(c.sndId))
+    ? B.unwordsN(cmdTagBytes.IDS, B.encodeBase64(c.rcvId), B.encodeBase64(c.sndId))
     : c.cmd === "MSG"
-    ? unwordsN(cmdTagBytes.MSG, encodeBase64(c.msgId), encodeAscii(c.ts.toISOString()), ...serializeMsg(c.msgBody))
+    ? B.unwordsN(cmdTagBytes.MSG, B.encodeBase64(c.msgId), B.encodeAscii(c.ts.toISOString()), ...serializeMsg(c.msgBody))
     : c.cmd === "ERR"
     ? c.error.eType === "CMD"
-      ? unwordsN(cmdTagBytes.ERR, errBytes.CMD, cmdErrBytes[c.error.eSubType])
-      : unwords(cmdTagBytes.ERR, errBytes[c.error.eType])
+      ? B.unwordsN(cmdTagBytes.ERR, errBytes.CMD, cmdErrBytes[c.error.eSubType])
+      : B.unwords(cmdTagBytes.ERR, errBytes[c.error.eType])
     : cmdTagBytes[c.cmd]
 }
 
 function serializeMsg(msg: Uint8Array): Uint8Array[] {
   // eslint-disable-next-line @typescript-eslint/restrict-plus-operands
-  return [encodeAscii("" + msg.byteLength), msg, empty]
+  return [B.encodeAscii("" + msg.length), msg, B.empty]
 }
 
-const rsaPrefix = new Uint8Array(encodeAscii("rsa:"))
+const rsaPrefix = new Uint8Array(B.encodeAscii("rsa:"))
 
 function serializePubKey(rcvPubKey: Uint8Array): Uint8Array {
-  return concat(rsaPrefix, encodeBase64(rcvPubKey))
+  return B.concat(rsaPrefix, B.encodeBase64(rcvPubKey))
 }
 
 export const smpCmdParsers: {
@@ -215,6 +215,5 @@ function pubKeyP(p: Parser): Uint8Array | undefined {
 function messageP(p: Parser): Uint8Array | undefined {
   let len: number | undefined
   let msg: Uint8Array | undefined
-  if ((len = p.decimal()) && p.space() && (msg = p.take(len)) && p.space()) return msg
-  return undefined
+  return (len = p.decimal()) && p.space() && (msg = p.take(len)) && p.space() ? msg : undefined
 }

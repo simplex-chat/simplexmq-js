@@ -38,6 +38,8 @@ export type PrivateKey<T extends PrivateType = PrivateType> = CryptoKey & {
   algorithm: RsaKeyAlgorithm
 }
 
+export type SignKey = PrivateKey<PrivateType.Sign>
+
 interface KeyPair<T extends KeyType> {
   readonly publicKey: PublicKey<T>
   readonly privateKey: PrivateKey<PrivateUsage<T>>
