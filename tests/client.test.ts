@@ -7,7 +7,7 @@ import * as C from "../src/crypto"
 import * as assert from "assert"
 
 describe.skip("SMPClient (expects SMP server on localhost:80)", () => {
-  const keyHash: Uint8Array | undefined = B.decodeBase64(B.encodeAscii("bU0K+bRg24xWW//lS0umO1Zdw/SXqpJNtm1/RrPLViE="))
+  const keyHash: Uint8Array | undefined = B.decodeBase64(B.encodeAscii("pH7bg7B6vB3uJ1poKmClTAqr7yYWnAtapnIDN7ypKxU="))
 
   test("should create queue and sent/receive message", async (done) => {
     const smpServer = {host: "localhost", keyHash}

@@ -190,13 +190,6 @@ function delay(ms?: number): Promise<void> {
 
 export async function tPutEncrypted({conn, sndKey, blockSize}: THandle, data: ArrayBuffer): Promise<void> {
   const iv = nextIV(sndKey)
-  const {encrypted, authTag} = await C.encryptAESData(sndKey.aesKey, iv, blockSize - C.authTagSize, data)
-  return conn.write(B.concat(authTag, encrypted))
-}
-
-// TODO change server in v0.4 to match (auth tag should be appended to the end)
-export async function tPutEncrypted1({conn, sndKey, blockSize}: THandle, data: ArrayBuffer): Promise<void> {
-  const iv = nextIV(sndKey)
   const block = await C.encryptAES(sndKey.aesKey, iv, blockSize - C.authTagSize, data)
   return conn.write(new Uint8Array(block))
 }
@@ -206,17 +199,8 @@ export async function tGetEncrypted({conn, rcvKey, blockSize}: THandle): Promise
 }
 
 async function decryptBlock(k: SessionKey, block: Uint8Array): Promise<ArrayBuffer> {
-  const authTag = block.subarray(0, 16)
-  const encrypted = block.subarray(16)
   const iv = nextIV(k)
-  return C.decryptAESData(k.aesKey, iv, {encrypted, authTag})
-}
-
-// TODO change server in v0.4 to match (auth tag should be appended to the end)
-export async function tGetEncrypted1({conn, rcvKey, blockSize}: THandle): Promise<ArrayBuffer> {
-  const block = await conn.readBinary(blockSize)
-  const iv = nextIV(rcvKey)
-  return C.decryptAES(rcvKey.aesKey, iv, block)
+  return C.decryptAES(k.aesKey, iv, block)
 }
 
 function nextIV(k: SessionKey): ArrayBuffer {
@@ -295,7 +279,7 @@ function parseSMPVersion(block: ArrayBuffer): SMPVersion {
   throw new Error("transport handshake error: cannot parse version")
 }
 
-const currentSMPVersion: SMPVersion = [0, 3, 2, 0]
+const currentSMPVersion: SMPVersion = [0, 4, 1, 0]
 
 const serverHeaderSize = 8
 
