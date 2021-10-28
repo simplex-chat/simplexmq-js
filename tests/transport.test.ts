@@ -30,7 +30,7 @@ describe("WS: WebSocket client transport", () => {
 })
 
 describe.skip("SMP transport (expects SMP server on localhost:80)", () => {
-  const keyHash: Uint8Array | undefined = decodeBase64(encodeAscii("bU0K+bRg24xWW//lS0umO1Zdw/SXqpJNtm1/RrPLViE="))
+  const keyHash: Uint8Array | undefined = decodeBase64(encodeAscii("pH7bg7B6vB3uJ1poKmClTAqr7yYWnAtapnIDN7ypKxU="))
 
   test("transport handshake should agree session keys via WSTransport", async (done) => {
     const conn = await WSTransport.connect("ws://localhost:80", 1000, 10)
