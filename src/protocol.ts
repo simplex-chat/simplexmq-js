@@ -1,5 +1,5 @@
-import {concat, unwords, unwordsN, encodeAscii, encodeBase64} from "./buffer"
 import {BinaryTags, Parser} from "./parser"
+import * as B from "./buffer"
 
 export enum Party {
   Recipient = "R",
@@ -15,7 +15,7 @@ const senderCmdTags = ["SEND", "PING"] as const
 
 type SenderCmdTag = typeof senderCmdTags[number]
 
-const brokerCmdTags = ["IDS", "MSG", "END", "OK", "ERR", "PONG"] as const
+export const brokerCmdTags = ["IDS", "MSG", "END", "OK", "ERR", "PONG"] as const
 
 type BrokerCmdTag = typeof brokerCmdTags[number]
 
@@ -31,26 +31,43 @@ type CmdTag<P extends Party = Party> = P extends Party.Recipient
 
 export const cmdTags = [...recipientCmdTags, ...senderCmdTags, ...brokerCmdTags] as const
 
-interface Command<P extends Party, C extends CmdTag<P>> {
-  party: P
-  cmd: C
-  [x: string]: unknown
+export interface Command<P extends Party, C extends CmdTag<P>> {
+  readonly party: P
+  readonly cmd: C
+  readonly [x: string]: unknown
 }
 
-export type NEW = Command<Party.Recipient, "NEW"> & {rcvPubKey: Uint8Array}
+export type NEW = Command<Party.Recipient, "NEW"> & {readonly rcvPubKey: Uint8Array}
 export type SUB = Command<Party.Recipient, "SUB">
-export type KEY = Command<Party.Recipient, "KEY"> & {sndPubKey: Uint8Array}
+export type KEY = Command<Party.Recipient, "KEY"> & {readonly sndPubKey: Uint8Array}
 export type ACK = Command<Party.Recipient, "ACK">
 export type OFF = Command<Party.Recipient, "OFF">
 export type DEL = Command<Party.Recipient, "DEL">
-export type SEND = Command<Party.Sender, "SEND"> & {msgBody: Uint8Array}
+export type SEND = Command<Party.Sender, "SEND"> & {readonly msgBody: Uint8Array}
 export type PING = Command<Party.Sender, "PING">
-export type IDS = Command<Party.Broker, "IDS"> & {rcvId: Uint8Array; sndId: Uint8Array}
-export type MSG = Command<Party.Broker, "MSG"> & {msgId: Uint8Array; ts: Date; msgBody: Uint8Array}
+export type IDS = Command<Party.Broker, "IDS"> & {readonly rcvId: Uint8Array; readonly sndId: Uint8Array}
+export type MSG = Command<Party.Broker, "MSG"> & {readonly msgId: Uint8Array; readonly ts: Date; readonly msgBody: Uint8Array}
 export type END = Command<Party.Broker, "END">
 export type OK = Command<Party.Broker, "OK">
-export type ERR<E extends ErrorType = ErrorType> = Command<Party.Broker, "ERR"> & {error: E; cmdError: ErrorSubType<E>}
+export type ERR<E extends ErrorType = ErrorType> = Command<Party.Broker, "ERR"> & {readonly error: SMPError<E>}
 export type PONG = Command<Party.Broker, "PONG">
+
+export type SMPError<E extends ErrorType = ErrorType> = E extends "CMD"
+  ? {
+      readonly eType: "CMD"
+      readonly eSubType: CMDErrorType
+    }
+  : {readonly eType: E}
+
+type ErrorSubType<E extends ErrorType = ErrorType> = E extends "CMD" ? CMDErrorType : undefined
+
+export function smpError<E extends ErrorType>(eType: E, eSubType: ErrorSubType<E>): SMPError<E> {
+  return (eType === "CMD" ? {eType, eSubType} : {eType}) as SMPError<E>
+}
+
+export function smpCmdError(eSubType: CMDErrorType): SMPError<"CMD"> {
+  return {eType: "CMD", eSubType}
+}
 
 const smpErrors = ["BLOCK", "CMD", "AUTH", "NO_MSG", "INTERNAL"] as const
 
@@ -62,12 +79,12 @@ const smpCmdErrors = ["PROHIBITED", "KEY_SIZE", "SYNTAX", "NO_AUTH", "HAS_AUTH",
 
 const cmdErrBytes: BinaryTags<typeof smpCmdErrors[number]> = binaryTags(smpCmdErrors)
 
-type CMDErrorType = typeof smpCmdErrors[number]
-
-type ErrorSubType<E extends ErrorType> = E extends "CMD" ? CMDErrorType : undefined
+export type CMDErrorType = typeof smpCmdErrors[number]
 
 export type SMPCommand<P extends Party = Party, C extends CmdTag<P> = CmdTag<P>> = Command<P, C> &
   (NEW | SUB | KEY | ACK | OFF | DEL | SEND | PING | IDS | MSG | END | OK | ERR | PONG)
+
+export type Client = Party.Recipient | Party.Sender
 
 // command constructors
 export const cNEW = (key: Uint8Array): NEW => ({cmd: "NEW", party: Party.Recipient, rcvPubKey: key})
@@ -91,8 +108,7 @@ export const cOK = (): OK => ({cmd: "OK", party: Party.Broker})
 export const cERR = <E extends ErrorType>(error: E, cmdError: ErrorSubType<E>): ERR<E> => ({
   cmd: "ERR",
   party: Party.Broker,
-  error,
-  cmdError,
+  error: smpError(error, cmdError),
 })
 export const cPONG = (): PONG => ({cmd: "PONG", party: Party.Broker})
 
@@ -100,41 +116,41 @@ export const cmdTagBytes: BinaryTags<CmdTag> = binaryTags(cmdTags)
 
 function binaryTags<T extends string>(tags: readonly T[]): BinaryTags<T> {
   const res: Partial<BinaryTags<T>> = {}
-  tags.forEach((tag) => (res[tag] = encodeAscii(tag)))
+  tags.forEach((tag) => (res[tag] = B.encodeAscii(tag)))
   return res as BinaryTags<T>
 }
 
 export function serializeSMPCommand(c: SMPCommand): Uint8Array {
   return c.cmd === "NEW"
-    ? unwords(cmdTagBytes.NEW, serializePubKey(c.rcvPubKey))
+    ? B.unwords(cmdTagBytes.NEW, serializePubKey(c.rcvPubKey))
     : c.cmd === "KEY"
-    ? unwords(cmdTagBytes.KEY, serializePubKey(c.sndPubKey))
+    ? B.unwords(cmdTagBytes.KEY, serializePubKey(c.sndPubKey))
     : c.cmd === "SEND"
-    ? unwordsN(cmdTagBytes.SEND, ...serializeMsg(c.msgBody))
+    ? B.unwordsN(cmdTagBytes.SEND, ...serializeMsg(c.msgBody))
     : c.cmd === "IDS"
-    ? unwordsN(cmdTagBytes.IDS, encodeBase64(c.rcvId), encodeBase64(c.sndId))
+    ? B.unwordsN(cmdTagBytes.IDS, B.encodeBase64(c.rcvId), B.encodeBase64(c.sndId))
     : c.cmd === "MSG"
-    ? unwordsN(cmdTagBytes.MSG, encodeBase64(c.msgId), encodeAscii(c.ts.toISOString()), ...serializeMsg(c.msgBody))
+    ? B.unwordsN(cmdTagBytes.MSG, B.encodeBase64(c.msgId), B.encodeAscii(c.ts.toISOString()), ...serializeMsg(c.msgBody))
     : c.cmd === "ERR"
-    ? c.error === "CMD"
-      ? unwordsN(cmdTagBytes.ERR, errBytes.CMD, cmdErrBytes[c.cmdError as ErrorSubType<"CMD">])
-      : unwords(cmdTagBytes.ERR, errBytes[c.error])
+    ? c.error.eType === "CMD"
+      ? B.unwordsN(cmdTagBytes.ERR, errBytes.CMD, cmdErrBytes[c.error.eSubType])
+      : B.unwords(cmdTagBytes.ERR, errBytes[c.error.eType])
     : cmdTagBytes[c.cmd]
 }
 
 function serializeMsg(msg: Uint8Array): Uint8Array[] {
   // eslint-disable-next-line @typescript-eslint/restrict-plus-operands
-  return [encodeAscii("" + msg.byteLength), msg, new Uint8Array(0)]
+  return [B.encodeAscii("" + msg.length), msg, B.empty]
 }
 
-const rsaPrefix = new Uint8Array(encodeAscii("rsa:"))
+const rsaPrefix = new Uint8Array(B.encodeAscii("rsa:"))
 
 function serializePubKey(rcvPubKey: Uint8Array): Uint8Array {
-  return concat(rsaPrefix, encodeBase64(rcvPubKey))
+  return B.concat(rsaPrefix, B.encodeBase64(rcvPubKey))
 }
 
 export const smpCmdParsers: {
-  [T in CmdTag]: (p: Parser) => SMPCommand<Party, T> | undefined
+  readonly [T in CmdTag]: (p: Parser) => SMPCommand<Party, T> | undefined
 } = {
   NEW: (p) => {
     let key: Uint8Array | undefined
@@ -155,7 +171,7 @@ export const smpCmdParsers: {
   PING: cPING,
   IDS: (p) => {
     let rId, sId: Uint8Array | undefined
-    return p.space() && (rId = p.takeBase64()) && p.space() && (sId = p.takeBase64()) && cIDS(rId, sId)
+    return p.space() && (rId = p.base64()) && p.space() && (sId = p.base64()) && cIDS(rId, sId)
   },
   MSG: (p) => {
     let msgId: Uint8Array | undefined
@@ -163,7 +179,7 @@ export const smpCmdParsers: {
     let ts: Date | undefined
     return (
       p.space() &&
-      (msgId = p.takeBase64()) &&
+      (msgId = p.base64()) &&
       p.space() &&
       (ts = p.date()) &&
       p.space() &&
@@ -193,12 +209,11 @@ export function smpCommandP(p: Parser): SMPCommand | undefined {
 }
 
 function pubKeyP(p: Parser): Uint8Array | undefined {
-  return p.str(rsaPrefix) && p.takeBase64()
+  return p.str(rsaPrefix) && p.base64()
 }
 
 function messageP(p: Parser): Uint8Array | undefined {
   let len: number | undefined
   let msg: Uint8Array | undefined
-  if ((len = p.decimal()) && p.space() && (msg = p.take(len)) && p.space()) return msg
-  return undefined
+  return (len = p.decimal()) && p.space() && (msg = p.take(len)) && p.space() ? msg : undefined
 }

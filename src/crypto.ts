@@ -5,7 +5,7 @@ export enum KeyType {
   Verify = "verify",
 }
 
-enum PrivateType {
+export enum PrivateType {
   Decrypt = "decrypt",
   Sign = "sign",
 }
@@ -32,11 +32,13 @@ export type PublicKey<T extends KeyType = KeyType> = CryptoKey & {
   algorithm: RsaKeyAlgorithm
 }
 
-type PrivateKey<T extends PrivateType = PrivateType> = CryptoKey & {
+export type PrivateKey<T extends PrivateType = PrivateType> = CryptoKey & {
   type: "private"
   usages: [T]
   algorithm: RsaKeyAlgorithm
 }
+
+export type SignKey = PrivateKey<PrivateType.Sign>
 
 interface KeyPair<T extends KeyType> {
   readonly publicKey: PublicKey<T>
@@ -45,7 +47,7 @@ interface KeyPair<T extends KeyType> {
 
 export class CryptoError extends Error {}
 
-export async function generateKeyPair<T extends KeyType>(size: number, keyType: T): Promise<KeyPair<T>> {
+export function generateKeyPair<T extends KeyType>(size: number, keyType: T): Promise<KeyPair<T>> {
   const info = keyInfo[keyType]
   return crypto.subtle.generateKey(
     {name: info.algorithm, modulusLength: size, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256"},
@@ -125,21 +127,17 @@ export function decryptOAEP(key: PrivateKey<PrivateType.Decrypt>, data: ArrayBuf
   return crypto.subtle.decrypt({name: "RSA-OAEP"}, key, data)
 }
 
-export interface Signature {
-  signature: ArrayBuffer
+export async function sign(key: PrivateKey<PrivateType.Sign>, data: ArrayBuffer): Promise<ArrayBuffer> {
+  return crypto.subtle.sign({name: "RSA-PSS", saltLength: 32}, key, data)
 }
 
-export async function sign(key: PrivateKey<PrivateType.Sign>, data: ArrayBuffer): Promise<Signature> {
-  return {signature: await crypto.subtle.sign({name: "RSA-PSS", saltLength: 32}, key, data)}
-}
-
-export function verify(key: PublicKey<KeyType.Verify>, sig: Signature, data: ArrayBuffer): Promise<boolean> {
-  return crypto.subtle.verify({name: "RSA-PSS", saltLength: 32}, key, sig.signature, data)
+export function verify(key: PublicKey<KeyType.Verify>, sig: ArrayBuffer, data: ArrayBuffer): Promise<boolean> {
+  return crypto.subtle.verify({name: "RSA-PSS", saltLength: 32}, key, sig, data)
 }
 
 export type AESKey = CryptoKey & {type: "secret"; algorithm: AesKeyGenParams}
 
-export async function randomAESKey(length = 256): Promise<AESKey> {
+export function randomAESKey(length = 256): Promise<AESKey> {
   return crypto.subtle.generateKey({name: "AES-GCM", length}, true, ["encrypt", "decrypt"]) as Promise<AESKey>
 }
 

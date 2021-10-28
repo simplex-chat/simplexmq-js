@@ -29,7 +29,6 @@ rules:
   no-redeclare: error
   no-return-assign: error
   no-sequences: error
-  no-shadow: warn
   no-template-curly-in-string: error
   no-trailing-spaces: error
   no-undef-init: error
@@ -50,12 +49,14 @@ rules:
   "@typescript-eslint/default-param-last": error
   dot-notation: off
   "@typescript-eslint/dot-notation": error
+  "@typescript-eslint/no-empty-function": off
   "@typescript-eslint/explicit-function-return-type": [error, allowExpressions: true]
   "@typescript-eslint/explicit-member-accessibility": [error, accessibility: no-public]
   "@typescript-eslint/no-extraneous-class": error
   no-invalid-this: off
   "@typescript-eslint/no-invalid-this": error
   "@typescript-eslint/no-misused-new": error
+  "@typescript-eslint/no-shadow": warn
   "@typescript-eslint/no-unused-expressions": error
   "@typescript-eslint/no-unused-vars": [error, argsIgnorePattern: ^_]
   "@typescript-eslint/prefer-function-type": error

@@ -1,3 +1,5 @@
+export const empty = new Uint8Array(0)
+
 export function concat(b1: Uint8Array, b2: Uint8Array): Uint8Array {
   const a = new Uint8Array(b1.byteLength + b2.byteLength)
   a.set(b1, 0)
